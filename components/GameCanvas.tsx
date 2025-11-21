@@ -173,6 +173,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
              ctx.globalAlpha = 1.0;
         }
 
+        // MOVING HOME ANIMATION (Bubble with House)
+        if (agent.state === AgentState.MOVING_HOME) {
+             const bubbleY = -28 + bounce;
+             // Bubble
+             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+             ctx.beginPath();
+             ctx.roundRect(-10, bubbleY - 12, 20, 16, 4);
+             ctx.fill();
+             
+             // Pointer
+             ctx.beginPath();
+             ctx.moveTo(0, bubbleY + 4);
+             ctx.lineTo(-3, bubbleY + 2);
+             ctx.lineTo(3, bubbleY + 2);
+             ctx.fill();
+
+             // House Icon
+             ctx.fillStyle = '#ec4899'; // Pink-ish
+             // Roof
+             ctx.beginPath();
+             ctx.moveTo(0, bubbleY - 10);
+             ctx.lineTo(-6, bubbleY - 4);
+             ctx.lineTo(6, bubbleY - 4);
+             ctx.fill();
+             // Base
+             ctx.fillRect(-4, bubbleY - 4, 8, 6);
+             // Door
+             ctx.fillStyle = '#831843';
+             ctx.fillRect(-1.5, bubbleY - 1, 3, 3);
+        }
+
         // --- Resource Indicator (Above Head) ---
         if (agent.inventory && agent.inventory.amount > 0) {
             const percent = Math.min(1, agent.inventory.amount / agent.stats.maxCarry);

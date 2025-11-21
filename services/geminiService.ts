@@ -16,10 +16,13 @@ export const generateLore = async (gameState: GameState): Promise<string | null>
         avgStr > 15 ? "Strong" : 
         avgRes > 0.3 ? "Resilient" : "Balanced";
 
+    // Approx year calc for AI context (matches App.tsx roughly)
+    const currentYear = Math.floor(gameState.totalTime / 3600) + 1;
+
     const prompt = `
     You are the chronicler of a virtual civilization simulation.
     Current State:
-    - Generation: ${gameState.generation}
+    - Year: ${currentYear}
     - Population: ${gameState.agents.length} (Peak: ${gameState.populationPeak})
     - Resources: Food ${Math.floor(gameState.resources.FOOD)}, Wood ${Math.floor(gameState.resources.WOOD)}, Stone ${Math.floor(gameState.resources.STONE)}
     - Dominant Evolutionary Trait: ${dominantTrait}

@@ -92,7 +92,7 @@ const App: React.FC = () => {
               if (text) {
                   setGameState(prev => ({
                       ...prev,
-                      lore: [text, ...prev.lore].slice(0, 10)
+                      lore: [text, ...prev.lore].slice(10)
                   }));
               }
           });
@@ -128,6 +128,7 @@ const App: React.FC = () => {
         const isEntityNotFound = errorMessage.includes("Requested entity was not found");
 
         if ((isPermissionDenied || isEntityNotFound) && window.aistudio) {
+             console.log("Permission denied. Requesting new API key...");
              try {
                  await window.aistudio.openSelectKey();
              } catch (e) { console.error("Key selection failed", e); }
@@ -136,6 +137,11 @@ const App: React.FC = () => {
         setIsGeneratingImg(false);
     }
   };
+
+  // Calculate Calendar
+  const totalDays = Math.floor(gameState.totalTime / 10); // 10 ticks = 1 day
+  const currentYear = Math.floor(totalDays / 360) + 1;
+  const dayOfYear = totalDays % 360;
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col lg:flex-row overflow-hidden">
@@ -147,7 +153,9 @@ const App: React.FC = () => {
                 <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-2 drop-shadow-lg">
                     <Zap className="text-amber-400 fill-amber-400" /> EvoCiv
                 </h1>
-                <p className="text-slate-400 text-sm mt-1 font-mono bg-slate-900/80 px-2 rounded inline-block">世代 {gameState.generation} • 天数 {Math.floor(gameState.totalTime / 10)}</p>
+                <p className="text-slate-400 text-sm mt-1 font-mono bg-slate-900/80 px-2 rounded inline-block">
+                    年份 {currentYear} • 天数 {dayOfYear}
+                </p>
             </div>
         </div>
 
@@ -220,7 +228,7 @@ const App: React.FC = () => {
                     <div className="relative group rounded overflow-hidden border border-slate-700 aspect-square">
                         <img src={snapshot} alt="Civilization Snapshot" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                             <a href={snapshot} download={`evociv-gen${gameState.generation}.png`} className="text-white text-xs underline">下载</a>
+                             <a href={snapshot} download={`evociv-year${currentYear}.png`} className="text-white text-xs underline">下载</a>
                         </div>
                     </div>
                 ) : (
@@ -238,7 +246,7 @@ const App: React.FC = () => {
         {/* Evolution Stats */}
         <section>
             <h3 className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
-                <Activity size={14} /> 平均特征 (世代 {gameState.generation})
+                <Activity size={14} /> 平均特征 (当前)
             </h3>
             {gameState.agents.length > 0 ? (
                 <div className="space-y-2">

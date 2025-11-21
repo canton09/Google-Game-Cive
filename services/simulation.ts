@@ -169,7 +169,8 @@ export const tickSimulation = (state: GameState): GameState => {
     }
 
     // --- Disaster Logic ---
-    if (!newState.disasterActive && Math.random() < 0.0005) { // Small chance per tick
+    // Significantly reduced probability: 0.002% chance per tick
+    if (!newState.disasterActive && Math.random() < 0.00002) { 
         newState.disasterActive = true;
         newState.disasterType = Math.random() > 0.5 ? 'EARTHQUAKE' : 'BLIZZARD';
         const disasterName = newState.disasterType === 'EARTHQUAKE' ? '地震' : '暴风雪';
@@ -356,12 +357,14 @@ export const tickSimulation = (state: GameState): GameState => {
         if (!agent.stats.stamina) agent.stats.stamina = 500;
 
         // --- Energy Consumption ---
-        if (agent.state !== AgentState.RESTING) {
+        // Don't burn energy while moving home to ensure they make it
+        if (agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME) {
             agent.energy -= 0.5; // Burn energy
         }
 
         // Check for rest need
-        if (agent.energy <= 0 && agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME && !newState.disasterActive) {
+        // Go home if energy is below 30% to allow travel time
+        if (agent.energy < (agent.stats.stamina * 0.3) && agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME && !newState.disasterActive) {
             agent.state = AgentState.MOVING_HOME;
             // Find nearest house
             const homes = newState.buildings.filter(b => b.type === 'HOUSE' || b.type === 'STORAGE');
