@@ -1,0 +1,5 @@
+{
+  "name": "EvoCiv: Infinite Idle",
+  "description": "A minimalist, zero-player evolutionary simulation where autonomous agents live, gather, build, and evolve across generations. Features aesthetic visuals, auto-save mechanics, and AI-generated civilization lore.",
+  "requestFramePermissions": []
+}
