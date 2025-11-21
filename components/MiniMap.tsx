@@ -38,7 +38,8 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
                         ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
                     } else if (val > TERRAIN_WATER) {
                          // Land
-                         ctx.fillStyle = val > 0.55 ? '#334155' : COLORS.GRASS;
+                         if (val < TERRAIN_WATER + 0.05) ctx.fillStyle = COLORS.SAND;
+                         else ctx.fillStyle = val > 0.60 ? '#334155' : COLORS.GRASS;
                          ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
                     }
                 }

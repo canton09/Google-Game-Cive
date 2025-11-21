@@ -38,35 +38,44 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
                 const py = y * TILE_SIZE;
 
                 if (val >= TERRAIN_MOUNTAIN) {
-                    // Mountain
+                    // Mountain Base
                      tCtx.fillStyle = COLORS.MOUNTAIN; 
                      tCtx.fillRect(px, py, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
-                     // Highlights
-                     tCtx.strokeStyle = '#334155';
-                     tCtx.beginPath(); tCtx.moveTo(px, py+TILE_SIZE); tCtx.lineTo(px+TILE_SIZE, py); tCtx.stroke();
+                     
+                     // Mountain Detail (peaks)
+                     tCtx.fillStyle = '#334155';
+                     if ((x + y) % 2 === 0) {
+                        tCtx.beginPath(); 
+                        tCtx.moveTo(px, py + TILE_SIZE); 
+                        tCtx.lineTo(px + TILE_SIZE/2, py); 
+                        tCtx.lineTo(px + TILE_SIZE, py + TILE_SIZE); 
+                        tCtx.fill();
+                     }
                 } else if (val <= TERRAIN_WATER) {
-                    // Water (Already filled background, but explicit draw for clarity if needed)
+                    // Water
                     tCtx.fillStyle = COLORS.WATER;
                     tCtx.fillRect(px, py, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
-                    // Ripple effect
-                    if (Math.random() > 0.9) {
+                    
+                    // Shallow water/Coastline
+                    if (val > TERRAIN_WATER - 0.05) {
                         tCtx.fillStyle = 'rgba(255,255,255,0.1)';
-                        tCtx.fillRect(px + 4, py + 8, 8, 2);
+                        tCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                     }
                 } else {
-                    // Land (Grass/Forest)
-                    // Gradient based on height?
-                    if (val > 0.55) tCtx.fillStyle = '#1e293b'; // Rocky/Hills
-                    else if (val < 0.42) tCtx.fillStyle = '#064e3b'; // Deep Forest
-                    else tCtx.fillStyle = '#065f46'; // Grass
+                    // Land
+                    if (val < TERRAIN_WATER + 0.05) tCtx.fillStyle = COLORS.SAND; // Sand
+                    else if (val > 0.60) tCtx.fillStyle = '#1e293b'; // High rocks
+                    else if (val < 0.45) tCtx.fillStyle = '#064e3b'; // Deep Forest
+                    else tCtx.fillStyle = COLORS.GRASS; // Grass
 
                     tCtx.fillRect(px, py, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
                     
-                    // Texture
-                    if (val < 0.42 && Math.random() > 0.6) {
-                        // Forest trees
-                        tCtx.fillStyle = 'rgba(0,0,0,0.2)'; 
-                        tCtx.beginPath(); tCtx.moveTo(px+10, py+4); tCtx.lineTo(px+4, py+16); tCtx.lineTo(px+16, py+16); tCtx.fill();
+                    // Texture (Forest)
+                    if (val < 0.45 && val > TERRAIN_WATER + 0.05 && Math.random() > 0.7) {
+                        tCtx.fillStyle = 'rgba(0,0,0,0.15)'; 
+                        tCtx.beginPath(); 
+                        tCtx.arc(px + 10, py + 10, 6, 0, Math.PI*2); 
+                        tCtx.fill();
                     }
                 }
             }
@@ -152,7 +161,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         ctx.translate(x, y);
 
         // LEVEL BADGE
-        if (b.level > 1) {
+        if (b.level > 1 && b.type !== 'WALL') {
             ctx.fillStyle = '#fbbf24';
             for(let i=0; i<b.level; i++) {
                  ctx.beginPath(); ctx.arc(-8 + (i*5), -40, 1.5, 0, Math.PI*2); ctx.fill();
@@ -162,10 +171,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         // WALL RENDERING
         if (b.type === 'WALL') {
             const isStone = b.level > 1;
-            ctx.fillStyle = isStone ? '#475569' : '#78350f'; 
-            ctx.fillRect(-6, -12, 12, 12);
-            ctx.fillStyle = isStone ? '#64748b' : '#92400e';
-            ctx.fillRect(-6, -14, 12, 2);
+            if (isStone) {
+                // Stone Wall (Level 2+)
+                ctx.fillStyle = '#475569'; 
+                ctx.fillRect(-8, -14, 16, 14);
+                ctx.fillStyle = '#64748b'; // Highlights
+                ctx.fillRect(-8, -16, 16, 3);
+                // Crenellations
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(-8, -19, 4, 3);
+                ctx.fillRect(-1, -19, 4, 3);
+                ctx.fillRect(5, -19, 3, 3);
+            } else {
+                // Wood Fence (Level 1)
+                ctx.fillStyle = '#78350f'; 
+                // Posts
+                ctx.fillRect(-6, -12, 3, 12);
+                ctx.fillRect(3, -12, 3, 12);
+                // Rails
+                ctx.fillStyle = '#92400e';
+                ctx.fillRect(-7, -9, 14, 2);
+                ctx.fillRect(-7, -5, 14, 2);
+            }
+            
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.beginPath(); ctx.ellipse(0, 1, 8, 3, 0, 0, Math.PI*2); ctx.fill();
             ctx.restore();
