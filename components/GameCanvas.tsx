@@ -130,7 +130,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         if (agent.state === AgentState.RESTING) {
              ctx.shadowBlur = 0;
              ctx.fillStyle = '#e2e8f0';
-             ctx.font = '18px monospace'; // Increased font size
+             ctx.font = '18px monospace';
              const zOffset = (time / 20) % 30;
              ctx.globalAlpha = Math.max(0, 1 - (zOffset / 30));
              ctx.fillText("z", 5, -15 - zOffset/2);
@@ -151,46 +151,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
 
         if (b.type === 'STORAGE') {
             // --- MAJESTIC CASTLE ---
-            // Base
-            ctx.fillStyle = '#4c1d95'; // Darker violet base
+            ctx.fillStyle = '#4c1d95';
             ctx.fillRect(-25, -20, 50, 20);
             
-            // Main Keep
             ctx.fillStyle = COLORS.STORAGE;
             ctx.fillRect(-18, -45, 36, 45);
             
-            // Side Turrets
-            ctx.fillStyle = '#5b21b6'; // Dark violet
-            ctx.fillRect(-30, -30, 12, 30); // Left
-            ctx.fillRect(18, -30, 12, 30);  // Right
+            ctx.fillStyle = '#5b21b6';
+            ctx.fillRect(-30, -30, 12, 30);
+            ctx.fillRect(18, -30, 12, 30);
             
-            // Battlements/Details
             ctx.fillStyle = '#c084fc'; 
             ctx.fillRect(-18, -45, 6, 4);
             ctx.fillRect(-6, -45, 6, 4);
             ctx.fillRect(6, -45, 6, 4);
             
-            // Turret Roofs
-            ctx.fillStyle = '#fcd34d'; // Gold
-            ctx.beginPath(); ctx.moveTo(-30, -30); ctx.lineTo(-24, -45); ctx.lineTo(-18, -30); ctx.fill(); // Left Roof
-            ctx.beginPath(); ctx.moveTo(18, -30); ctx.lineTo(24, -45); ctx.lineTo(30, -30); ctx.fill(); // Right Roof
+            ctx.fillStyle = '#fcd34d';
+            ctx.beginPath(); ctx.moveTo(-30, -30); ctx.lineTo(-24, -45); ctx.lineTo(-18, -30); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(18, -30); ctx.lineTo(24, -45); ctx.lineTo(30, -30); ctx.fill();
             
-            // Main Roof (Tall)
-            ctx.fillStyle = '#fbbf24'; // Amber
+            ctx.fillStyle = '#fbbf24';
             ctx.beginPath(); ctx.moveTo(-18, -45); ctx.lineTo(0, -70); ctx.lineTo(18, -45); ctx.fill();
             
-            // Gate
             ctx.fillStyle = '#0f172a';
             ctx.beginPath(); ctx.arc(0, 0, 10, Math.PI, 0); ctx.fill();
             
-            // Flag
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(0, -70); ctx.lineTo(0, -85); ctx.stroke();
-            ctx.fillStyle = '#ef4444'; // Red Flag
+            ctx.fillStyle = '#ef4444';
             ctx.beginPath(); ctx.moveTo(0, -85); ctx.lineTo(12, -78); ctx.lineTo(0, -71); ctx.fill();
 
-            // Glow
             ctx.shadowColor = '#fbbf24';
             ctx.shadowBlur = 15;
             ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
@@ -337,18 +328,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
     return (
         <div className="relative rounded-xl overflow-hidden shadow-2xl shadow-black/50 border border-white/5 bg-[#020617]">
             <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className="block w-full h-full object-cover" />
-            
-            {gameState.disasterActive && (
-                <div className="absolute top-8 left-1/2 transform -translate-x-1/2 
-                                bg-red-500/20 backdrop-blur-md border border-red-500/50 
-                                text-red-200 px-8 py-3 rounded-full animate-pulse 
-                                text-2xl font-bold tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.4)]
-                                flex items-center gap-3">
-                    <span className="animate-bounce">⚠</span>
-                    {gameState.disasterType === 'EARTHQUAKE' ? '地震来袭' : '暴风雪来袭'}
-                    <span className="animate-bounce">⚠</span>
-                </div>
-            )}
         </div>
     );
 };

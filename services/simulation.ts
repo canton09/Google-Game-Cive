@@ -462,16 +462,13 @@ export const tickSimulation = (state: GameState): GameState => {
     const popCount = newState.agents.length;
 
     // --- 需求计算 (文明大脑) ---
-    // 1. 生存需求: 每个人需要一定的食物储备
+    // 1. 生存需求
     const foodGoal = popCount * 30 + 200; 
-    const foodNeed = Math.max(0, (foodGoal - newState.resources.FOOD) / 50); // 范围约 0 - 10+
+    const foodNeed = Math.max(0, (foodGoal - newState.resources.FOOD) / 50); 
 
-    // 2. 建设需求: 检查我们是否能负担得起下一个建筑
+    // 2. 建设需求
     const farmCost = COSTS.FARM;
-    const storageCost = COSTS.STORAGE;
-    const wallCost = COSTS.WALL_WOOD;
-
-    // 如果食物少，需要造农场，对木/石需求增加
+    
     let woodNeed = 1; 
     let stoneNeed = 0.5;
     let ironNeed = 0.1;
@@ -482,27 +479,25 @@ export const tickSimulation = (state: GameState): GameState => {
     const numStorage = newState.buildings.filter(b => b.type === 'STORAGE').length;
     
     if (newState.resources.FOOD < foodGoal && numFarms < popCount / 2) {
-        // 极度需要农场
         woodNeed += 5;
         stoneNeed += 2;
     }
 
     if (newState.resources.WOOD > 800 || newState.resources.STONE > 500) {
-        // 资源快满了，需要仓库
         woodNeed += 3;
         stoneNeed += 3;
     }
 
+    // 如果资源富余，加大防御和高级资源的需求
     if (newState.resources.WOOD > 300 && newState.resources.STONE > 200) {
-        // 资源富裕，可以搞防御和高级资源
         ironNeed += 2;
         goldNeed += 1;
-        stoneNeed += 1; // 墙需要石/木
+        stoneNeed += 1; 
+        woodNeed += 1; // 墙也需要木头
     }
 
-    // 归一化需求权重
     const needs: Record<ResourceType, number> = {
-        [ResourceType.FOOD]: Math.min(15, foodNeed * 2), // 食物始终是高优先级如果短缺
+        [ResourceType.FOOD]: Math.min(15, foodNeed * 2),
         [ResourceType.WOOD]: Math.min(10, woodNeed),
         [ResourceType.STONE]: Math.min(10, stoneNeed),
         [ResourceType.IRON]: Math.min(8, ironNeed),
@@ -536,12 +531,17 @@ export const tickSimulation = (state: GameState): GameState => {
         }
     }
 
-    // --- 资源再生 ---
+    // --- 资源自动再生机制 (更新) ---
     newState.nodes.forEach(node => {
-        if (node.amount < node.maxAmount && Math.random() < 0.01 && !newState.disasterActive) node.amount++;
-        if (node.amount <= 0 && Math.random() < 0.001) {
-            node.amount = node.type === ResourceType.GOLD ? 50 : 200;
+        // 自然恢复
+        if (node.amount < node.maxAmount && node.amount > 0 && Math.random() < 0.01 && !newState.disasterActive) node.amount++;
+        
+        // 枯竭立即重生：寻找新地点并回满
+        if (node.amount <= 0) {
             node.position = getSpawnPos(node.type, newState.terrain);
+            node.amount = node.maxAmount; 
+            // 偶尔变异出大资源点
+            if (Math.random() < 0.1) node.amount = Math.floor(node.amount * 1.5);
         }
     });
 
@@ -550,28 +550,24 @@ export const tickSimulation = (state: GameState): GameState => {
 
     // --- 自动建造与升级逻辑 ---
     
-    // 1. 农场建造 (基于人口压力)
+    // 1. 农场建造
     if (canAfford(COSTS.FARM)) {
-        // 如果食物产出跟不上或者人口太多
         const idealFarms = Math.ceil(popCount / 2.5);
         if (numFarms < idealFarms) {
              newState.resources.WOOD -= COSTS.FARM.WOOD;
              newState.resources.STONE -= COSTS.FARM.STONE;
-             const pos = findConstructionSpot(center, newState.buildings, newState.terrain, 60);
+             const pos = findConstructionSpot(center!, newState.buildings, newState.terrain, 60);
              newState.buildings.push({ id: `farm-${newState.totalTime}`, type: 'FARM', position: pos, level: 1 });
              newState.lore.unshift("居民们开垦了新的农田以应对人口增长。");
         }
     }
 
-    // 2. 仓库建造/升级 (基于资源溢出)
+    // 2. 仓库升级
     const storages = newState.buildings.filter(b => b.type === 'STORAGE');
     if (storages.length > 0) {
-        // 升级优先
         const mainStorage = storages[0];
         const upgradeCost = getUpgradeCost('STORAGE', mainStorage.level);
         if (canAfford(upgradeCost)) {
-            // 如果资源快满了，升级
-            // 简化判定：只要资源足够多就尝试升级，增加宏伟感
             if (newState.resources.WOOD > 1000 && newState.resources.STONE > 500) {
                  newState.resources.WOOD -= upgradeCost.WOOD;
                  newState.resources.STONE -= upgradeCost.STONE;
@@ -581,7 +577,7 @@ export const tickSimulation = (state: GameState): GameState => {
         }
     }
 
-    // 3. 住宅升级 (提升幸福感/容量 - 虽然现在是自动建房，但升级可以作为资源消耗口)
+    // 3. 住宅升级
     if (newState.totalTime % 100 === 0) {
         const houses = newState.buildings.filter(b => b.type === 'HOUSE' && b.level < 3);
         if (houses.length > 0 && canAfford(COSTS.UPGRADE_HOUSE)) {
@@ -592,35 +588,55 @@ export const tickSimulation = (state: GameState): GameState => {
         }
     }
 
-    // 4. 防御工事 (富余资源)
+    // 4. 智能城墙/围栏系统 (更新)
+    // 逻辑：找到最远的建筑（不包括墙），以它为半径画圆，填补缺口
     const walls = newState.buildings.filter(b => b.type === 'WALL');
-    if (newState.resources.WOOD > 400 && newState.resources.STONE > 100) {
-        // 尝试建造一圈墙
-        if (Math.random() < 0.1) {
+    
+    // 只有资源相对充足时才修墙，避免耽误发展
+    if (newState.resources.WOOD > 150 || newState.resources.STONE > 100) {
+        // 每次检查频率降低以节省性能
+        if (newState.totalTime % 5 === 0) {
             let maxDist = 0;
-            newState.buildings.forEach(b => { if (b.type !== 'WALL') maxDist = Math.max(maxDist, dist(center!, b.position)); });
-            const wallRadius = Math.max(150, maxDist + 50); 
+            // 寻找最远的非墙体建筑，确定防御圈大小
+            newState.buildings.forEach(b => { 
+                if (b.type !== 'WALL') {
+                    const d = dist(center!, b.position); 
+                    if (d > maxDist) maxDist = d;
+                }
+            });
             
-            for(let i=0; i<5; i++) { // 尝试几次找到合适位置
+            // 防御半径 = 最远建筑 + 缓冲带
+            const defenseRadius = Math.max(150, maxDist + 60); 
+            
+            // 随机采样圆周上的点尝试建造
+            const attempts = 3; // 每次尝试修几段
+            for(let i=0; i<attempts; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const wx = center!.x + Math.cos(angle) * wallRadius;
-                const wy = center!.y + Math.sin(angle) * wallRadius;
+                const wx = center!.x + Math.cos(angle) * defenseRadius;
+                const wy = center!.y + Math.sin(angle) * defenseRadius;
                 
+                // 检查该位置是否可建造
                 if (isBuildable(wx, wy, newState.terrain, 5)) {
-                    const nearbyWall = walls.find(b => dist(b.position, {x:wx, y:wy}) < 15);
-                    if (!nearbyWall) {
-                        const blocked = newState.buildings.some(b => dist(b.position, {x:wx, y:wy}) < 15) ||
-                                        newState.nodes.some(n => dist(n.position, {x:wx, y:wy}) < 15);
-                        if (!blocked) {
-                            if (newState.resources.STONE > COSTS.WALL_STONE.STONE) {
-                                newState.resources.STONE -= COSTS.WALL_STONE.STONE;
-                                newState.buildings.push({ id: `wall-s-${newState.totalTime}`, type: 'WALL', position: {x:wx,y:wy}, level: 2 });
-                            } else {
-                                newState.resources.WOOD -= COSTS.WALL_WOOD.WOOD;
-                                newState.buildings.push({ id: `wall-w-${newState.totalTime}`, type: 'WALL', position: {x:wx,y:wy}, level: 1 });
-                            }
-                            break;
+                    // 检查该位置附近是否已经有墙 (防止重叠)
+                    const nearbyWall = walls.some(b => dist(b.position, {x:wx, y:wy}) < 20);
+                    
+                    // 检查该位置是否离资源点太近 (防止把矿封死)
+                    const tooCloseToResource = newState.nodes.some(n => dist(n.position, {x:wx, y:wy}) < 25);
+
+                    if (!nearbyWall && !tooCloseToResource) {
+                        let built = false;
+                        // 优先用石头建墙，没有则用木头
+                        if (newState.resources.STONE >= COSTS.WALL_STONE.STONE) {
+                            newState.resources.STONE -= COSTS.WALL_STONE.STONE;
+                            newState.buildings.push({ id: `wall-s-${newState.totalTime}-${i}`, type: 'WALL', position: {x:wx,y:wy}, level: 2 });
+                            built = true;
+                        } else if (newState.resources.WOOD >= COSTS.WALL_WOOD.WOOD) {
+                            newState.resources.WOOD -= COSTS.WALL_WOOD.WOOD;
+                            newState.buildings.push({ id: `wall-w-${newState.totalTime}-${i}`, type: 'WALL', position: {x:wx,y:wy}, level: 1 });
+                            built = true;
                         }
+                        
+                        if (built) break; // 这一帧只建一个，慢慢来
                     }
                 }
             }
@@ -629,7 +645,6 @@ export const tickSimulation = (state: GameState): GameState => {
 
 
     // --- 繁殖 (累积进度) ---
-    // 只有食物足够，人口才会增长
     const SAFETY_FOOD_BUFFER = 150;
     const GROWTH_RATE_PER_TICK = 0.8; 
 
