@@ -1,3 +1,4 @@
+
 export enum AgentState {
   IDLE = 'IDLE',
   MOVING_TO_RESOURCE = 'MOVING_TO_RESOURCE',
@@ -42,14 +43,16 @@ export interface Agent {
   age: number;
   gen: number;
   color: string;
+  homeId: string | null; // The ID of the house this agent owns/lives in
 }
 
 export interface Building {
   id: string;
-  type: 'HOUSE' | 'STORAGE' | 'MONUMENT' | 'FARM' | 'TOWER';
+  type: 'HOUSE' | 'STORAGE' | 'MONUMENT' | 'FARM' | 'TOWER' | 'WALL';
   position: Vector2;
   level: number;
   lastLevelUpTime?: number; // Tick timestamp when last upgraded
+  occupants?: string[]; // IDs of agents living here
 }
 
 export interface ResourceNode {

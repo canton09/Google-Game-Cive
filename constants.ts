@@ -1,4 +1,5 @@
 
+
 export const CANVAS_WIDTH = 1600;
 export const CANVAS_HEIGHT = 1200;
 export const TILE_SIZE = 20;
@@ -16,6 +17,7 @@ export const COLORS = {
   STORAGE: '#a78bfa', // Violet 400
   FARM: '#84cc16', // Lime 500
   TOWER: '#94a3b8', // Slate 400
+  WALL: '#78350f', // Amber 900 (Wood) or Slate for Stone
   DISASTER: '#ef4444', // Red 500
 };
 
@@ -28,11 +30,15 @@ export const BASE_STATS = {
   stamina: 1000, // Energy before needing rest
 };
 
+export const HOUSE_CAPACITY = 2; // Small families per house
+
 export const COSTS = {
-  HOUSE: { WOOD: 50, STONE: 10 },
-  STORAGE: { WOOD: 100, STONE: 50 },
+  HOUSE: { WOOD: 60, STONE: 10 },
+  STORAGE: { WOOD: 150, STONE: 50 },
   FARM: { WOOD: 80, STONE: 20 },
   TOWER: { STONE: 150, IRON: 50 },
+  WALL_WOOD: { WOOD: 15 }, 
+  WALL_STONE: { STONE: 15 },
   UPGRADE: { WOOD: 100, STONE: 50 },
   SPAWN: { FOOD: 25 },
 };
