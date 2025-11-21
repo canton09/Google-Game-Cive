@@ -1,13 +1,14 @@
 
 import { Agent, AgentState, Building, GameState, ResourceNode, ResourceType, Vector2, Stats } from "../types";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COSTS, BASE_STATS, MUTATION_RATE, GRID_W, GRID_H, TILE_SIZE, HOUSE_CAPACITY, COLORS, BUILDINGS_CONFIG } from "../constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, COSTS, BASE_STATS, MUTATION_RATE, GRID_W, GRID_H, TILE_SIZE, HOUSE_CAPACITY, COLORS, BUILDINGS_CONFIG, TERRAIN_MOUNTAIN, TERRAIN_WATER } from "../constants";
 
 // Helper: Distance
 const dist = (v1: Vector2, v2: Vector2) => Math.sqrt(Math.pow(v2.x - v1.x, 2) + Math.pow(v2.y - v1.y, 2));
 
-// Helper: Terrain Generation
+// Helper: Terrain Generation with Biomes
 export const generateTerrain = (): number[][] => {
     const map: number[][] = [];
+    // Init noise
     for (let y = 0; y < GRID_H; y++) {
         const row: number[] = [];
         for (let x = 0; x < GRID_W; x++) {
@@ -16,6 +17,7 @@ export const generateTerrain = (): number[][] => {
         map.push(row);
     }
 
+    // Smooth
     for (let i = 0; i < 4; i++) {
         const newMap = JSON.parse(JSON.stringify(map));
         for (let y = 0; y < GRID_H; y++) {
@@ -41,13 +43,39 @@ export const generateTerrain = (): number[][] => {
             }
         }
     }
+
+    // Increase Contrast to create distinct biomes
+    for(let y=0; y<GRID_H; y++) {
+        for(let x=0; x<GRID_W; x++) {
+            let val = map[y][x];
+            val = (val - 0.5) * 1.8 + 0.5; // Push values away from 0.5
+            map[y][x] = Math.max(0, Math.min(1, val));
+        }
+    }
+
     return map;
+};
+
+// Check if a coordinate is passable (walkable)
+const isPassable = (x: number, y: number, terrain: number[][]): boolean => {
+    if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) return false;
+    const gx = Math.floor(x / TILE_SIZE);
+    const gy = Math.floor(y / TILE_SIZE);
+    if (gy < 0 || gy >= GRID_H || gx < 0 || gx >= GRID_W) return false;
+    
+    const val = terrain[gy][gx];
+    return val > TERRAIN_WATER && val < TERRAIN_MOUNTAIN;
+};
+
+// Check if a spot is valid for building (Passable + Not reserved)
+const isBuildable = (x: number, y: number, terrain: number[][]): boolean => {
+    return isPassable(x, y, terrain);
 };
 
 // Helper: Biome-aware Random Position
 const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 => {
     let bestPos = { x: CANVAS_WIDTH/2, y: CANVAS_HEIGHT/2 };
-    let maxAttempts = 20;
+    let maxAttempts = 50;
 
     for (let i = 0; i < maxAttempts; i++) {
         const gx = Math.floor(Math.random() * (GRID_W - 2)) + 1;
@@ -57,13 +85,16 @@ const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 =
         const px = gx * TILE_SIZE + (Math.random() * TILE_SIZE);
         const py = gy * TILE_SIZE + (Math.random() * TILE_SIZE);
 
+        // Must be accessible
+        if (val <= TERRAIN_WATER || val >= TERRAIN_MOUNTAIN) continue;
+
         let valid = false;
         if (type === ResourceType.FOOD) {
-            if (val < 0.48) valid = true; 
+            if (val < 0.5) valid = true; 
         } else if (type === ResourceType.STONE || type === ResourceType.IRON) {
-            if (val > 0.52) valid = true; 
+            if (val > 0.5) valid = true; 
         } else if (type === ResourceType.GOLD) {
-            if (val > 0.6) valid = true; 
+            if (val > 0.55) valid = true; 
         } else {
             valid = true;
         }
@@ -77,29 +108,31 @@ const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 =
 };
 
 // Helper: Find valid building spot using concentric spiral around center
-const findConstructionSpot = (center: Vector2, buildings: Building[], minRadius: number = 40): Vector2 => {
+const findConstructionSpot = (center: Vector2, buildings: Building[], terrain: number[][], minRadius: number = 40): Vector2 => {
     let radius = minRadius;
     let angle = 0;
     const maxRadius = 1000;
-    const angleStep = 0.5; // roughly 30 degrees
+    const angleStep = 0.5; 
     
     while (radius < maxRadius) {
         const x = center.x + Math.cos(angle) * radius;
         const y = center.y + Math.sin(angle) * radius;
         
-        // Bounds check
+        // Bounds & Terrain check
         if (x > 50 && x < CANVAS_WIDTH - 50 && y > 50 && y < CANVAS_HEIGHT - 50) {
-             // Collision check with other buildings
-             const collision = buildings.some(b => dist(b.position, {x,y}) < 25); // 25 radius clearance
-             if (!collision) {
-                 return {x, y};
+             if (isBuildable(x, y, terrain)) {
+                 // Collision check with other buildings
+                 const collision = buildings.some(b => dist(b.position, {x,y}) < 25); 
+                 if (!collision) {
+                     return {x, y};
+                 }
              }
         }
         
         angle += angleStep;
         if (angle > Math.PI * 2) {
             angle = 0;
-            radius += 20; // Move outward
+            radius += 20; 
         }
     }
     return center;
@@ -144,11 +177,61 @@ const getUpgradeCost = (type: 'HOUSE' | 'STORAGE' | 'FARM', currentLevel: number
     };
 };
 
+// --- Movement Helper ---
+const moveAgentTowards = (agent: Agent, target: Vector2, terrain: number[][]) => {
+    const dx = target.x - agent.position.x;
+    const dy = target.y - agent.position.y;
+    const distToTarget = Math.sqrt(dx*dx + dy*dy);
+    
+    if (distToTarget < agent.stats.speed) {
+        agent.position.x = target.x;
+        agent.position.y = target.y;
+        return;
+    }
+
+    const angle = Math.atan2(dy, dx);
+    const vx = Math.cos(angle) * agent.stats.speed;
+    const vy = Math.sin(angle) * agent.stats.speed;
+
+    const nextX = agent.position.x + vx;
+    const nextY = agent.position.y + vy;
+
+    // Collision Check: Try full move
+    if (isPassable(nextX, nextY, terrain)) {
+        agent.position.x = nextX;
+        agent.position.y = nextY;
+    } else {
+        // Slide along axes
+        if (isPassable(nextX, agent.position.y, terrain)) {
+            agent.position.x = nextX;
+        } else if (isPassable(agent.position.x, nextY, terrain)) {
+            agent.position.y = nextY;
+        }
+        // Else blocked
+    }
+};
+
 
 export const initializeGame = (): GameState => {
-    const center: Vector2 = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
     const terrain = generateTerrain();
     
+    // Find a valid spawn center (not water/mountain)
+    let center = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
+    // Search for valid center
+    let foundCenter = false;
+    // Spiral out from center to find valid land
+    let r = 0, a = 0;
+    while(!foundCenter && r < 500) {
+        const cx = center.x + Math.cos(a) * r;
+        const cy = center.y + Math.sin(a) * r;
+        if (isBuildable(cx, cy, terrain)) {
+            center = {x: cx, y: cy};
+            foundCenter = true;
+        }
+        a += 0.5;
+        if (a > Math.PI*2) { a=0; r+=20; }
+    }
+
     // Initial Nodes
     const nodes: ResourceNode[] = [];
     for (let i = 0; i < 6; i++) nodes.push({ id: `f-${i}`, type: ResourceType.FOOD, position: getSpawnPos(ResourceType.FOOD, terrain), amount: 1000, maxAmount: 1000 });
@@ -157,17 +240,16 @@ export const initializeGame = (): GameState => {
     for (let i = 0; i < 2; i++) nodes.push({ id: `i-${i}`, type: ResourceType.IRON, position: getSpawnPos(ResourceType.IRON, terrain), amount: 2000, maxAmount: 2000 });
     for (let i = 0; i < 1; i++) nodes.push({ id: `g-${i}`, type: ResourceType.GOLD, position: getSpawnPos(ResourceType.GOLD, terrain), amount: 500, maxAmount: 500 });
 
-    // Initial Buildings: CENTRAL STORAGE
+    // Initial Buildings
     const buildings: Building[] = [
         { id: 'base', type: 'STORAGE', position: center, level: 1, occupants: [] }
     ];
 
-    // Initial Agents & Houses
+    // Initial Agents
     const agents: Agent[] = [];
     const initPop = 6;
     
     for (let i = 0; i < initPop; i++) {
-        // Create Agent
         const agent: Agent = {
             id: `init-${i}`,
             position: { x: center.x + (Math.random() * 40 - 20), y: center.y + (Math.random() * 40 - 20) },
@@ -184,10 +266,10 @@ export const initializeGame = (): GameState => {
         agents.push(agent);
     }
 
-    // Create initial houses for them
+    // Create initial houses
     const housesNeeded = Math.ceil(initPop / HOUSE_CAPACITY);
     for(let h=0; h<housesNeeded; h++) {
-         const pos = findConstructionSpot(center, buildings, 40);
+         const pos = findConstructionSpot(center, buildings, terrain, 40);
          const houseId = `house-init-${h}`;
          buildings.push({
              id: houseId,
@@ -201,13 +283,11 @@ export const initializeGame = (): GameState => {
     // Assign homes
     let currentHouseIdx = 0;
     agents.forEach(agent => {
-        // Find a house
         let house = buildings.filter(b => b.type === 'HOUSE')[currentHouseIdx];
         if (!house) {
             currentHouseIdx = 0;
             house = buildings.filter(b => b.type === 'HOUSE')[0];
         }
-        
         if (house) {
             agent.homeId = house.id;
             house.occupants = house.occupants || [];
@@ -216,9 +296,8 @@ export const initializeGame = (): GameState => {
         }
     });
 
-
     return {
-        resources: { FOOD: 50, WOOD: 100, STONE: 0, IRON: 0, GOLD: 0 }, // Start with some wood for walls/homes
+        resources: { FOOD: 50, WOOD: 100, STONE: 0, IRON: 0, GOLD: 0 },
         agents,
         buildings,
         nodes,
@@ -228,7 +307,7 @@ export const initializeGame = (): GameState => {
         totalTime: 0,
         disasterActive: false,
         disasterType: null,
-        lore: ["第一批家庭建立了他们的家园，围绕着中心仓库开始了新的生活。"]
+        lore: ["第一批家庭建立了他们的家园，在荒野中开辟出第一块立足之地。"]
     };
 };
 
@@ -240,29 +319,24 @@ export const tickSimulation = (state: GameState): GameState => {
     if (newState.resources.IRON === undefined) newState.resources.IRON = 0;
     if (newState.resources.GOLD === undefined) newState.resources.GOLD = 0;
 
-    // Ensure center exists (fallback)
     let center = newState.buildings.find(b => b.type === 'STORAGE')?.position;
     if (!center && newState.buildings.length > 0) center = newState.buildings[0].position;
     if (!center) center = { x: CANVAS_WIDTH/2, y: CANVAS_HEIGHT/2 };
 
     newState.totalTime += 1;
-    
-    // Calculate global storage cap
     const maxStorage = getMaxStorage(newState.buildings);
 
-    // --- Production & Disaster ---
-    // Farms produce based on level
+    // --- Production ---
     if (newState.totalTime % 200 === 0) { 
         const farms = newState.buildings.filter(b => b.type === 'FARM');
         let production = 0;
         farms.forEach(f => production += getFarmProduction(f));
-        
         if (newState.resources.FOOD < maxStorage) {
             newState.resources.FOOD = Math.min(maxStorage, newState.resources.FOOD + production);
         }
     }
 
-    // Disaster Logic
+    // --- Disaster ---
     if (!newState.disasterActive && Math.random() < 0.00002) { 
         newState.disasterActive = true;
         newState.disasterType = Math.random() > 0.5 ? 'EARTHQUAKE' : 'BLIZZARD';
@@ -271,22 +345,16 @@ export const tickSimulation = (state: GameState): GameState => {
         if (Math.random() < 0.005) { 
             newState.disasterActive = false;
             newState.disasterType = null;
-        } else {
-            // Damage logic
-             if (newState.disasterType === 'EARTHQUAKE') {
-                if (Math.random() < 0.01) {
-                    // Chance to damage walls first
-                    const walls = newState.buildings.filter(b => b.type === 'WALL');
-                    if (walls.length > 0) {
-                        const victimIdx = Math.floor(Math.random() * walls.length);
-                        newState.buildings.splice(newState.buildings.indexOf(walls[victimIdx]), 1);
-                    }
-                }
+        } else if (newState.disasterType === 'EARTHQUAKE' && Math.random() < 0.01) {
+            const walls = newState.buildings.filter(b => b.type === 'WALL');
+            if (walls.length > 0) {
+                const victimIdx = Math.floor(Math.random() * walls.length);
+                newState.buildings.splice(newState.buildings.indexOf(walls[victimIdx]), 1);
             }
         }
     }
 
-    // --- Resource Respawn ---
+    // --- Resources ---
     newState.nodes.forEach(node => {
         if (node.amount < node.maxAmount && Math.random() < 0.01 && !newState.disasterActive) node.amount++;
         if (node.amount <= 0 && Math.random() < 0.001) {
@@ -295,106 +363,82 @@ export const tickSimulation = (state: GameState): GameState => {
         }
     });
 
-    // --- CITY MANAGEMENT: AUTOMATIC UPGRADES ---
-    // Simple AI to manage upgrades
-    if (newState.totalTime % 50 === 0 && !newState.disasterActive) { // Check occasionally
+    // --- CITY UPGRADES ---
+    if (newState.totalTime % 50 === 0 && !newState.disasterActive) {
         const canAfford = (cost: {WOOD: number, STONE: number}) => newState.resources.WOOD >= cost.WOOD && newState.resources.STONE >= cost.STONE;
         
-        // 1. Check Storage Upgrade (Priority: if getting full)
+        // Storage
         const avgRes = (newState.resources.FOOD + newState.resources.WOOD + newState.resources.STONE) / 3;
         if (avgRes > maxStorage * 0.8) {
             const storages = newState.buildings.filter(b => b.type === 'STORAGE' && b.level < BUILDINGS_CONFIG.STORAGE.MAX_LEVEL);
-            // Pick lowest level first
             storages.sort((a,b) => a.level - b.level);
-            const candidate = storages[0];
-            if (candidate) {
-                const cost = getUpgradeCost('STORAGE', candidate.level);
+            if (storages[0]) {
+                const cost = getUpgradeCost('STORAGE', storages[0].level);
                 if (canAfford(cost)) {
                     newState.resources.WOOD -= cost.WOOD;
                     newState.resources.STONE -= cost.STONE;
-                    candidate.level++;
-                    candidate.lastLevelUpTime = newState.totalTime;
+                    storages[0].level++;
+                    storages[0].lastLevelUpTime = newState.totalTime;
                 }
             }
         }
 
-        // 2. Check House Upgrade (Priority: if homeless or crowded)
+        // Houses
         const totalPop = newState.agents.length;
         const totalCap = newState.buildings.filter(b => b.type === 'HOUSE').reduce((sum, b) => sum + getHouseCapacity(b), 0);
         if (totalPop >= totalCap * 0.9) {
              const houses = newState.buildings.filter(b => b.type === 'HOUSE' && b.level < BUILDINGS_CONFIG.HOUSE.MAX_LEVEL);
-             houses.sort((a,b) => a.level - b.level); // Upgrade small houses first
-             const candidate = houses[0];
-             if (candidate) {
-                 const cost = getUpgradeCost('HOUSE', candidate.level);
+             houses.sort((a,b) => a.level - b.level);
+             if (houses[0]) {
+                 const cost = getUpgradeCost('HOUSE', houses[0].level);
                  if (canAfford(cost)) {
                     newState.resources.WOOD -= cost.WOOD;
                     newState.resources.STONE -= cost.STONE;
-                    candidate.level++;
-                    candidate.lastLevelUpTime = newState.totalTime;
+                    houses[0].level++;
+                    houses[0].lastLevelUpTime = newState.totalTime;
                  }
              }
         }
 
-        // 3. Check Farm Upgrade (Priority: low food)
+        // Farms
         if (newState.resources.FOOD < maxStorage * 0.3) {
             const farms = newState.buildings.filter(b => b.type === 'FARM' && b.level < BUILDINGS_CONFIG.FARM.MAX_LEVEL);
             farms.sort((a,b) => a.level - b.level);
-            const candidate = farms[0];
-            if (candidate) {
-                 const cost = getUpgradeCost('FARM', candidate.level);
+            if (farms[0]) {
+                 const cost = getUpgradeCost('FARM', farms[0].level);
                  if (canAfford(cost)) {
                     newState.resources.WOOD -= cost.WOOD;
                     newState.resources.STONE -= cost.STONE;
-                    candidate.level++;
-                    candidate.lastLevelUpTime = newState.totalTime;
+                    farms[0].level++;
+                    farms[0].lastLevelUpTime = newState.totalTime;
                  }
             }
         }
     }
 
-    // --- CITY PLANNING & BUILDING (NEW STRUCTURES) ---
-    
-    // 1. Identify Housing Needs
+    // --- CITY CONSTRUCTION ---
     const houses = newState.buildings.filter(b => b.type === 'HOUSE');
     const homelessAgents = newState.agents.filter(a => !a.homeId || !houses.find(h => h.id === a.homeId));
-    
-    // 2. Build House 
-    // Logic: Only build NEW house if upgrading existing ones isn't an option (all maxed) OR we have tons of resources
     const allHousesMaxed = houses.every(h => h.level >= BUILDINGS_CONFIG.HOUSE.MAX_LEVEL);
     const needsHouse = homelessAgents.length > 0;
 
+    // 1. Build House
     if (needsHouse && (allHousesMaxed || houses.length < 3) && newState.resources.WOOD >= COSTS.HOUSE.WOOD && newState.resources.STONE >= COSTS.HOUSE.STONE) {
         newState.resources.WOOD -= COSTS.HOUSE.WOOD;
         newState.resources.STONE -= COSTS.HOUSE.STONE;
-        
-        const pos = findConstructionSpot(center, newState.buildings, 40);
-        const newHouse: Building = {
-            id: `house-${newState.totalTime}`,
-            type: 'HOUSE',
-            position: pos,
-            level: 1,
-            occupants: []
-        };
-        newState.buildings.push(newHouse);
+        const pos = findConstructionSpot(center, newState.buildings, newState.terrain, 40);
+        newState.buildings.push({ id: `house-${newState.totalTime}`, type: 'HOUSE', position: pos, level: 1, occupants: [] });
     }
 
-    // 3. Build Wall (Defensive Perimeter)
+    // 2. Build Wall
     if (!needsHouse && newState.buildings.length > 5) {
         const useStone = newState.resources.STONE > 100;
         const costAmount = useStone ? COSTS.WALL_STONE.STONE : COSTS.WALL_WOOD.WOOD;
         const resourceKey = useStone ? 'STONE' : 'WOOD';
         
-        const canAffordWall = newState.resources[resourceKey] >= costAmount;
-
-        if (canAffordWall && Math.random() < 0.1) {
+        if (newState.resources[resourceKey] >= costAmount && Math.random() < 0.1) {
             let maxDist = 0;
-            newState.buildings.forEach(b => {
-                if (b.type !== 'WALL') {
-                    const d = dist(center!, b.position);
-                    if (d > maxDist) maxDist = d;
-                }
-            });
+            newState.buildings.forEach(b => { if (b.type !== 'WALL') maxDist = Math.max(maxDist, dist(center!, b.position)); });
             const wallRadius = maxDist + 40;
             
             for(let i=0; i<5; i++) {
@@ -402,54 +446,48 @@ export const tickSimulation = (state: GameState): GameState => {
                 const wx = center!.x + Math.cos(angle) * wallRadius;
                 const wy = center!.y + Math.sin(angle) * wallRadius;
                 
-                const nearbyWall = newState.buildings.find(b => b.type === 'WALL' && dist(b.position, {x:wx, y:wy}) < 20);
-                if (!nearbyWall) {
-                    const blocked = newState.buildings.some(b => dist(b.position, {x:wx, y:wy}) < 15) ||
-                                    newState.nodes.some(n => dist(n.position, {x:wx, y:wy}) < 15);
-                    
-                    if (!blocked) {
-                        newState.resources[resourceKey] -= costAmount;
-                        newState.buildings.push({
-                            id: `wall-${newState.totalTime}`,
-                            type: 'WALL',
-                            position: {x: wx, y: wy},
-                            level: useStone ? 2 : 1,
-                        });
-                        break;
+                // Check terrain validity for wall
+                if (isBuildable(wx, wy, newState.terrain)) {
+                    const nearbyWall = newState.buildings.find(b => b.type === 'WALL' && dist(b.position, {x:wx, y:wy}) < 20);
+                    if (!nearbyWall) {
+                        const blocked = newState.buildings.some(b => dist(b.position, {x:wx, y:wy}) < 15) ||
+                                        newState.nodes.some(n => dist(n.position, {x:wx, y:wy}) < 15);
+                        if (!blocked) {
+                            newState.resources[resourceKey] -= costAmount;
+                            newState.buildings.push({
+                                id: `wall-${newState.totalTime}`,
+                                type: 'WALL',
+                                position: {x: wx, y: wy},
+                                level: useStone ? 2 : 1,
+                            });
+                            break;
+                        }
                     }
                 }
             }
         }
     }
 
-    // 4. Build Farm
+    // 3. Build Farm
     if (newState.resources.WOOD >= COSTS.FARM.WOOD && newState.resources.STONE >= COSTS.FARM.STONE && Math.random() < 0.01) {
-        // Limit farm count based on pop
         if (newState.buildings.filter(b => b.type === 'FARM').length < Math.max(2, newState.agents.length / 5)) {
             newState.resources.WOOD -= COSTS.FARM.WOOD;
             newState.resources.STONE -= COSTS.FARM.STONE;
-            const pos = findConstructionSpot(center, newState.buildings, 80);
-            newState.buildings.push({
-                id: `farm-${newState.totalTime}`,
-                type: 'FARM',
-                position: pos,
-                level: 1
-            });
+            const pos = findConstructionSpot(center, newState.buildings, newState.terrain, 80);
+            newState.buildings.push({ id: `farm-${newState.totalTime}`, type: 'FARM', position: pos, level: 1 });
         }
     }
 
-    // --- Spawning Logic ---
+    // --- Reproduction ---
     const totalCapacity = newState.buildings.filter(b => b.type === 'HOUSE').reduce((acc, b) => acc + getHouseCapacity(b), 0);
-    const currentPop = newState.agents.length;
-    
-    if (newState.resources.FOOD >= COSTS.SPAWN.FOOD && currentPop < totalCapacity) {
+    if (newState.resources.FOOD >= COSTS.SPAWN.FOOD && newState.agents.length < totalCapacity) {
         newState.resources.FOOD -= COSTS.SPAWN.FOOD;
         const parent = newState.agents[Math.floor(Math.random() * newState.agents.length)];
         const newStats = parent ? mutate(parent.stats) : { ...BASE_STATS };
         
         const newAgent: Agent = {
             id: `gen-${newState.totalTime}`,
-            position: { ...center! },
+            position: { ...center! }, // Start at center/storage
             target: null,
             state: AgentState.IDLE,
             inventory: null,
@@ -461,14 +499,12 @@ export const tickSimulation = (state: GameState): GameState => {
             homeId: null
         };
         
-        // Find home for baby (check capacity respecting levels)
         const home = newState.buildings.find(b => b.type === 'HOUSE' && (b.occupants?.length || 0) < getHouseCapacity(b));
         if (home) {
             newAgent.homeId = home.id;
             home.occupants = home.occupants || [];
             home.occupants.push(newAgent.id);
         }
-
         newState.agents.push(newAgent);
         newState.populationPeak = Math.max(newState.populationPeak, newState.agents.length);
     }
@@ -478,9 +514,7 @@ export const tickSimulation = (state: GameState): GameState => {
         const alive = a.age < a.stats.lifespan;
         if (!alive && a.homeId) {
              const home = newState.buildings.find(b => b.id === a.homeId);
-             if (home && home.occupants) {
-                 home.occupants = home.occupants.filter(oid => oid !== a.id);
-             }
+             if (home && home.occupants) home.occupants = home.occupants.filter(oid => oid !== a.id);
         }
         return alive;
     });
@@ -490,7 +524,7 @@ export const tickSimulation = (state: GameState): GameState => {
         for(let i=0; i<2; i++) {
              newState.agents.push({
                 id: `nomad-${newState.totalTime}-${i}`,
-                position: { x: center!.x + (Math.random() * 100 - 50), y: center!.y + (Math.random() * 100 - 50) },
+                position: { ...center! },
                 target: null,
                 state: AgentState.IDLE,
                 inventory: null,
@@ -506,47 +540,31 @@ export const tickSimulation = (state: GameState): GameState => {
 
     newState.agents.forEach(agent => {
         agent.age++;
-        if (agent.energy === undefined) agent.energy = agent.stats.stamina || 500;
+        if (agent.energy === undefined) agent.energy = agent.stats.stamina;
 
-        // Consumption
-        if (agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME) {
-            agent.energy -= 0.5; 
-        }
+        if (agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME) agent.energy -= 0.5;
 
-        // Rest Logic
         if (agent.energy < (agent.stats.stamina * 0.3) && agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME && !newState.disasterActive) {
             agent.state = AgentState.MOVING_HOME;
             let homePos = center!; 
             if (agent.homeId) {
                 const home = newState.buildings.find(b => b.id === agent.homeId);
                 if (home) homePos = home.position;
-                else {
-                    // Home destroyed? Find new one
-                    const newHome = newState.buildings.find(b => b.type === 'HOUSE' && (b.occupants?.length || 0) < getHouseCapacity(b));
-                    if (newHome) {
-                        agent.homeId = newHome.id;
-                        newHome.occupants?.push(agent.id);
-                        homePos = newHome.position;
-                    }
-                }
             }
             agent.target = homePos;
         }
 
-        if (newState.disasterActive && Math.random() > agent.stats.resilience) {
-             agent.state = AgentState.FLEEING;
-        }
+        if (newState.disasterActive && Math.random() > agent.stats.resilience) agent.state = AgentState.FLEEING;
 
-        // State Machine
+        // State Machine with Collision
         switch (agent.state) {
             case AgentState.FLEEING:
                 if (dist(agent.position, center!) > 50) {
                      const angle = Math.atan2(center!.y - agent.position.y, center!.x - agent.position.x);
-                     agent.position.x += Math.cos(angle) * agent.stats.speed * 1.5;
-                     agent.position.y += Math.sin(angle) * agent.stats.speed * 1.5;
-                } else if (!newState.disasterActive) {
-                    agent.state = AgentState.IDLE;
-                }
+                     const tX = agent.position.x + Math.cos(angle) * 10;
+                     const tY = agent.position.y + Math.sin(angle) * 10;
+                     moveAgentTowards(agent, {x: tX, y: tY}, newState.terrain);
+                } else if (!newState.disasterActive) agent.state = AgentState.IDLE;
                 break;
 
             case AgentState.RESTING:
@@ -559,62 +577,55 @@ export const tickSimulation = (state: GameState): GameState => {
 
             case AgentState.MOVING_HOME:
                 if (agent.target) {
-                    const d = dist(agent.position, agent.target);
-                    if (d < 10) {
+                    if (dist(agent.position, agent.target) < 10) {
                         agent.state = AgentState.RESTING;
                         agent.target = null;
                     } else {
-                        const angle = Math.atan2(agent.target.y - agent.position.y, agent.target.x - agent.position.x);
-                        agent.position.x += Math.cos(angle) * agent.stats.speed;
-                        agent.position.y += Math.sin(angle) * agent.stats.speed;
+                        moveAgentTowards(agent, agent.target, newState.terrain);
                     }
-                } else {
-                    agent.state = AgentState.IDLE;
-                }
+                } else agent.state = AgentState.IDLE;
                 break;
 
             case AgentState.IDLE:
                 let targetType = ResourceType.FOOD;
-                
-                // Logic modified: check global caps
-                // Only gather if we aren't full
-                // Simple priority logic
                 const isFull = (type: ResourceType) => newState.resources[type] >= maxStorage;
 
                 if (!isFull(ResourceType.WOOD) && newState.resources.FOOD > 100) targetType = ResourceType.WOOD;
                 if (!isFull(ResourceType.STONE) && newState.resources.WOOD > 150) targetType = ResourceType.STONE;
                 if (!isFull(ResourceType.IRON) && newState.resources.WOOD > 300 && newState.resources.STONE > 100 && Math.random() < 0.3) targetType = ResourceType.IRON;
                 if (!isFull(ResourceType.GOLD) && newState.resources.WOOD > 500 && Math.random() < 0.1) targetType = ResourceType.GOLD;
-                
                 if (isFull(targetType) && !isFull(ResourceType.FOOD)) targetType = ResourceType.FOOD;
 
                 const nodes = newState.nodes.filter(n => n.type === targetType && n.amount > 0);
                 if (nodes.length > 0) {
                     nodes.sort((a,b) => dist(agent.position, a.position) - dist(agent.position, b.position));
+                    // Pick from top 3 nearest to avoid congestion
                     const targetNode = nodes[Math.floor(Math.random() * Math.min(3, nodes.length))];
                     agent.target = targetNode.position;
                     agent.state = AgentState.MOVING_TO_RESOURCE;
                 } else {
+                     // Wander randomly
                      const angle = Math.random() * Math.PI * 2;
-                     agent.position.x += Math.cos(angle) * 5;
-                     agent.position.y += Math.sin(angle) * 5;
+                     const wx = agent.position.x + Math.cos(angle) * 20;
+                     const wy = agent.position.y + Math.sin(angle) * 20;
+                     if (isPassable(wx, wy, newState.terrain)) {
+                         moveAgentTowards(agent, {x: wx, y: wy}, newState.terrain);
+                     }
                 }
                 break;
 
             case AgentState.MOVING_TO_RESOURCE:
                 if (agent.target) {
-                    if (dist(agent.position, agent.target) < 5) {
+                    if (dist(agent.position, agent.target) < 10) {
                         agent.state = AgentState.GATHERING;
                     } else {
-                         const angle = Math.atan2(agent.target.y - agent.position.y, agent.target.x - agent.position.x);
-                         agent.position.x += Math.cos(angle) * agent.stats.speed;
-                         agent.position.y += Math.sin(angle) * agent.stats.speed;
+                        moveAgentTowards(agent, agent.target, newState.terrain);
                     }
                 } else agent.state = AgentState.IDLE;
                 break;
 
             case AgentState.GATHERING:
-                const node = newState.nodes.find(n => dist(agent.position, n.position) < 15);
+                const node = newState.nodes.find(n => dist(agent.position, n.position) < 20); // Increased range slightly
                 if (node && node.amount > 0) {
                     agent.inventory = agent.inventory || { type: node.type, amount: 0 };
                     let speedMod = 1;
@@ -631,29 +642,23 @@ export const tickSimulation = (state: GameState): GameState => {
                         agent.target = center!;
                     }
                 } else {
-                    agent.state = AgentState.RETURNING;
-                    agent.target = center!;
+                    // Node depleted or invalid, find new
+                    agent.state = AgentState.IDLE;
                 }
                 break;
 
             case AgentState.RETURNING:
-                if (dist(agent.position, agent.target || center!) < 10) {
+                if (dist(agent.position, center!) < 15) {
                     if (agent.inventory) {
-                        // Apply max storage cap
                         newState.resources[agent.inventory.type] = Math.min(maxStorage, newState.resources[agent.inventory.type] + agent.inventory.amount);
                         agent.inventory = null;
                     }
                     agent.state = AgentState.IDLE;
                 } else {
-                     const angle = Math.atan2((agent.target?.y || center!.y) - agent.position.y, (agent.target?.x || center!.x) - agent.position.x);
-                     agent.position.x += Math.cos(angle) * agent.stats.speed;
-                     agent.position.y += Math.sin(angle) * agent.stats.speed;
+                    moveAgentTowards(agent, center!, newState.terrain);
                 }
                 break;
         }
-
-        agent.position.x = Math.max(0, Math.min(CANVAS_WIDTH, agent.position.x));
-        agent.position.y = Math.max(0, Math.min(CANVAS_HEIGHT, agent.position.y));
     });
 
     return newState;

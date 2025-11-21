@@ -1,6 +1,7 @@
+
 import React, { useEffect, useRef } from 'react';
 import { GameState, ResourceType } from '../types';
-import { COLORS, GRID_H, GRID_W, CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE } from '../constants';
+import { COLORS, GRID_H, GRID_W, CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE, TERRAIN_MOUNTAIN, TERRAIN_WATER } from '../constants';
 
 interface MiniMapProps {
     gameState: GameState;
@@ -19,7 +20,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
         const height = canvas.height;
 
         // Clear Background
-        ctx.fillStyle = '#0f172a'; // Slate 900
+        ctx.fillStyle = COLORS.WATER; 
         ctx.fillRect(0, 0, width, height);
 
         const scaleX = width / CANVAS_WIDTH;
@@ -27,17 +28,18 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
         const tileW = TILE_SIZE * scaleX;
         const tileH = TILE_SIZE * scaleY;
 
-        // 1. Draw Terrain (Simplified)
+        // 1. Draw Terrain
         if (gameState.terrain) {
              for (let y = 0; y < GRID_H; y++) {
                 for (let x = 0; x < GRID_W; x++) {
                     const val = gameState.terrain[y][x];
-                    if (val > 0.6) {
-                        ctx.fillStyle = '#1e293b'; // Mountain
+                    if (val >= TERRAIN_MOUNTAIN) {
+                        ctx.fillStyle = COLORS.MOUNTAIN; 
                         ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
-                    } else if (val < 0.45) {
-                        ctx.fillStyle = 'rgba(6, 78, 59, 0.6)'; // Deep Green
-                        ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
+                    } else if (val > TERRAIN_WATER) {
+                         // Land
+                         ctx.fillStyle = val > 0.55 ? '#334155' : COLORS.GRASS;
+                         ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
                     }
                 }
             }
@@ -68,7 +70,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
             ctx.fillRect(a.position.x * scaleX, a.position.y * scaleY, 1, 1);
         });
         
-        // Viewport border (aesthetic)
+        // Viewport border
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
         ctx.strokeRect(0, 0, width, height);
 

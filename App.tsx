@@ -1,29 +1,17 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Activity, Box, Database, Users, Zap, Image as ImageIcon, Loader, RefreshCw } from 'lucide-react';
+import { Activity, Box, Database, Users, Zap, TrendingUp, Home, Wheat, Package, Shield, Heart, Clock } from 'lucide-react';
 import GameCanvas from './components/GameCanvas';
 import { initializeGame, tickSimulation, generateTerrain, getMaxStorage } from './services/simulation';
-import { generateLore, generateCivilizationSnapshot } from './services/geminiService';
-import { GameState } from './types';
+import { generateLore } from './services/geminiService';
+import { GameState, AgentState } from './types';
 import { GRID_W, GRID_H } from './constants';
 
 const OFFLINE_CALCULATION_LIMIT = 3600 * 12; // Max 12 hours offline progress
 
-// Mapping for stat labels
-const STAT_LABELS: Record<string, string> = {
-    speed: '速度',
-    maxCarry: '负重',
-    resilience: '韧性'
-};
-
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(initializeGame());
-  // Removed isPlaying and speed controls for constant flow
   const [lastSaved, setLastSaved] = useState<number>(Date.now());
-  
-  // Image Gen State
-  const [snapshot, setSnapshot] = useState<string | null>(null);
-  const [isGeneratingImg, setIsGeneratingImg] = useState(false);
 
   const requestRef = useRef<number>();
   const lastTimeRef = useRef<number>();
@@ -107,37 +95,6 @@ const App: React.FC = () => {
     if (confirm("确定要毁灭这个文明并重新开始吗？")) {
         localStorage.removeItem('evociv_save');
         setGameState(initializeGame());
-        setSnapshot(null);
-    }
-  };
-
-  const handleSnapshot = async () => {
-    try {
-        if (window.aistudio && !await window.aistudio.hasSelectedApiKey()) {
-            await window.aistudio.openSelectKey();
-        }
-        
-        setIsGeneratingImg(true);
-        // Fixed 1K resolution
-        const imgData = await generateCivilizationSnapshot(gameState);
-        if (imgData) {
-            setSnapshot(imgData);
-        }
-    } catch (error: any) {
-        console.error("Snapshot error:", error);
-        
-        const errorMessage = String(error);
-        const isPermissionDenied = errorMessage.includes("403") || errorMessage.includes("PERMISSION_DENIED");
-        const isEntityNotFound = errorMessage.includes("Requested entity was not found");
-
-        if ((isPermissionDenied || isEntityNotFound) && window.aistudio) {
-             console.log("Permission denied. Requesting new API key...");
-             try {
-                 await window.aistudio.openSelectKey();
-             } catch (e) { console.error("Key selection failed", e); }
-        }
-    } finally {
-        setIsGeneratingImg(false);
     }
   };
 
@@ -147,6 +104,19 @@ const App: React.FC = () => {
   const dayOfYear = totalDays % 360;
   
   const maxStorage = getMaxStorage(gameState.buildings);
+
+  // --- Derived Stats for Dashboard ---
+  const popCount = gameState.agents.length;
+  const avgSpeed = popCount ? gameState.agents.reduce((acc, a) => acc + a.stats.speed, 0) / popCount : 0;
+  const avgCarry = popCount ? gameState.agents.reduce((acc, a) => acc + a.stats.maxCarry, 0) / popCount : 0;
+  const avgWork = popCount ? gameState.agents.reduce((acc, a) => acc + a.stats.gatheringSpeed, 0) / popCount : 0;
+  const avgResilience = popCount ? gameState.agents.reduce((acc, a) => acc + a.stats.resilience, 0) / popCount : 0;
+  const avgLifespan = popCount ? gameState.agents.reduce((acc, a) => acc + a.stats.lifespan, 0) / popCount : 0;
+  
+  const bldHouse = gameState.buildings.filter(b => b.type === 'HOUSE').length;
+  const bldFarm = gameState.buildings.filter(b => b.type === 'FARM').length;
+  const bldStorage = gameState.buildings.filter(b => b.type === 'STORAGE').length;
+  const bldWall = gameState.buildings.filter(b => b.type === 'WALL').length;
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col lg:flex-row overflow-hidden">
@@ -194,101 +164,125 @@ const App: React.FC = () => {
       </main>
 
       {/* Sidebar / Dashboard */}
-      <aside className="w-full lg:w-80 bg-slate-950 border-l border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto max-h-[40vh] lg:max-h-screen shrink-0 z-30 shadow-xl">
+      <aside className="w-full lg:w-80 bg-slate-950 border-l border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto max-h-[40vh] lg:max-h-screen shrink-0 z-30 shadow-xl scrollbar-hide">
         
-        {/* Population Stats */}
+        {/* Section: Demographics */}
         <section>
-            <h3 className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
+            <h3 className="text-slate-500 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
                 <Users size={14} /> 人口统计
             </h3>
-            <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-900 p-3 rounded border border-slate-800">
-                    <div className="text-2xl font-light text-white">{gameState.agents.length}</div>
-                    <div className="text-xs text-slate-500">当前人口</div>
+            <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-900/50 p-3 rounded border border-slate-800/50 flex flex-col justify-between">
+                    <div className="text-slate-400 text-xs mb-1">当前人口</div>
+                    <div className="text-xl text-white font-medium">{popCount}</div>
                 </div>
-                <div className="bg-slate-900 p-3 rounded border border-slate-800">
-                    <div className="text-2xl font-light text-white">{gameState.buildings.length}</div>
-                    <div className="text-xs text-slate-500">建筑数量</div>
+                <div className="bg-slate-900/50 p-3 rounded border border-slate-800/50 flex flex-col justify-between">
+                    <div className="text-slate-400 text-xs mb-1">历史峰值</div>
+                    <div className="text-xl text-emerald-400 font-medium">{gameState.populationPeak}</div>
+                </div>
+                 <div className="bg-slate-900/50 p-3 rounded border border-slate-800/50 flex flex-col justify-between">
+                    <div className="text-slate-400 text-xs mb-1">繁衍代数</div>
+                    <div className="text-lg text-indigo-400 font-mono">Gen {gameState.generation}</div>
+                </div>
+                 <div className="bg-slate-900/50 p-3 rounded border border-slate-800/50 flex flex-col justify-between">
+                    <div className="text-slate-400 text-xs mb-1">预期寿命</div>
+                    <div className="text-lg text-amber-200 font-mono">{Math.floor(avgLifespan)} <span className="text-xs opacity-50">ticks</span></div>
                 </div>
             </div>
         </section>
 
-        {/* Visual History (Image Gen) */}
+        {/* Section: Infrastructure */}
         <section>
-            <h3 className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
-                <ImageIcon size={14} /> 视觉历史
+             <h3 className="text-slate-500 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
+                <Box size={14} /> 城市基建
             </h3>
-            <div className="bg-slate-900 p-3 rounded border border-slate-800 space-y-3">
-                <div className="flex gap-2">
-                     <button 
-                        onClick={handleSnapshot}
-                        disabled={isGeneratingImg}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white p-2 rounded flex items-center justify-center transition-colors text-xs font-bold uppercase tracking-wider"
-                     >
-                         {isGeneratingImg ? <Loader size={14} className="animate-spin" /> : <><RefreshCw size={14} className="mr-2" /> 生成快照 (1K)</>}
-                     </button>
+            <div className="grid grid-cols-4 gap-2">
+                <div className="bg-slate-900 p-2 rounded border border-slate-800 flex flex-col items-center gap-1" title="住宅">
+                    <Home size={16} className="text-pink-400" />
+                    <span className="text-sm font-bold text-slate-200">{bldHouse}</span>
                 </div>
+                <div className="bg-slate-900 p-2 rounded border border-slate-800 flex flex-col items-center gap-1" title="农场">
+                    <Wheat size={16} className="text-lime-500" />
+                    <span className="text-sm font-bold text-slate-200">{bldFarm}</span>
+                </div>
+                <div className="bg-slate-900 p-2 rounded border border-slate-800 flex flex-col items-center gap-1" title="仓库">
+                    <Package size={16} className="text-violet-400" />
+                    <span className="text-sm font-bold text-slate-200">{bldStorage}</span>
+                </div>
+                 <div className="bg-slate-900 p-2 rounded border border-slate-800 flex flex-col items-center gap-1" title="防御">
+                    <Shield size={16} className="text-slate-400" />
+                    <span className="text-sm font-bold text-slate-200">{bldWall}</span>
+                </div>
+            </div>
+        </section>
 
-                {snapshot ? (
-                    <div className="relative group rounded overflow-hidden border border-slate-700 aspect-square">
-                        <img src={snapshot} alt="Civilization Snapshot" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                             <a href={snapshot} download={`evociv-year${currentYear}.png`} className="text-white text-xs underline">下载</a>
+        {/* Section: Genetic Evolution (Detailed) */}
+        <section>
+            <h3 className="text-slate-500 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
+                <Activity size={14} /> 基因进化趋势
+            </h3>
+            {popCount > 0 ? (
+                <div className="space-y-3 bg-slate-900/30 p-3 rounded-lg border border-slate-800/50">
+                    {/* Speed */}
+                    <div>
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400 flex items-center gap-1"><TrendingUp size={10}/> 移动速度</span>
+                            <span className="text-sky-300 font-mono">{avgSpeed.toFixed(2)}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-sky-500" style={{ width: `${Math.min(100, (avgSpeed / 4) * 100)}%` }}></div>
                         </div>
                     </div>
-                ) : (
-                    <div className="aspect-square rounded border border-slate-800 border-dashed flex flex-col items-center justify-center text-slate-600 text-xs p-4 text-center bg-slate-950">
-                        {isGeneratingImg ? (
-                            <span className="animate-pulse">正在渲染模拟...</span>
-                        ) : (
-                            "捕捉你文明的高保真快照。"
-                        )}
-                    </div>
-                )}
-            </div>
-        </section>
 
-        {/* Evolution Stats */}
-        <section>
-            <h3 className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
-                <Activity size={14} /> 平均特征 (当前)
-            </h3>
-            {gameState.agents.length > 0 ? (
-                <div className="space-y-2">
-                    {['speed', 'maxCarry', 'resilience'].map(stat => {
-                        const avg = gameState.agents.reduce((acc, a) => acc + (a.stats as any)[stat], 0) / gameState.agents.length;
-                        const max = stat === 'speed' ? 5 : stat === 'maxCarry' ? 50 : 1;
-                        const percent = (avg / max) * 100;
-                        return (
-                            <div key={stat} className="group">
-                                <div className="flex justify-between text-xs text-slate-400 mb-1 capitalize">
-                                    <span>{STAT_LABELS[stat] || stat}</span>
-                                    <span>{avg.toFixed(2)}</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                                    <div 
-                                        className="h-full bg-indigo-500 transition-all duration-1000" 
-                                        style={{ width: `${Math.min(100, percent)}%` }}
-                                    ></div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                     {/* Gathering */}
+                    <div>
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400 flex items-center gap-1"><Clock size={10}/> 采集效率</span>
+                            <span className="text-emerald-300 font-mono">{avgWork.toFixed(2)}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (avgWork / 2) * 100)}%` }}></div>
+                        </div>
+                    </div>
+
+                    {/* Strength */}
+                    <div>
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400 flex items-center gap-1"><Box size={10}/> 负重能力</span>
+                            <span className="text-amber-300 font-mono">{avgCarry.toFixed(1)}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500" style={{ width: `${Math.min(100, (avgCarry / 30) * 100)}%` }}></div>
+                        </div>
+                    </div>
+
+                     {/* Resilience */}
+                    <div>
+                        <div className="flex justify-between text-xs mb-1">
+                            <span className="text-slate-400 flex items-center gap-1"><Heart size={10}/> 灾难抗性</span>
+                            <span className="text-rose-300 font-mono">{(avgResilience * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-rose-500" style={{ width: `${Math.min(100, avgResilience * 100)}%` }}></div>
+                        </div>
+                    </div>
                 </div>
             ) : (
-                <div className="text-sm text-red-400 italic">文明重建中...</div>
+                <div className="text-sm text-red-400 italic text-center py-4 border border-red-900/30 rounded bg-red-900/10">
+                    文明已灭绝，等待重生...
+                </div>
             )}
         </section>
 
         {/* Chronicles Log */}
-        <section className="flex-1 min-h-[200px]">
-            <h3 className="text-slate-400 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
-                <Database size={14} /> 编年史
+        <section className="flex-1 flex flex-col min-h-[200px]">
+            <h3 className="text-slate-500 text-xs uppercase font-bold tracking-wider mb-3 flex items-center gap-2">
+                <Database size={14} /> 历史编年史
             </h3>
-            <div className="space-y-3 text-sm">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3 text-sm max-h-[300px] custom-scrollbar">
                 {gameState.lore.map((entry, idx) => (
-                    <div key={idx} className={`pl-3 border-l-2 ${idx === 0 ? 'border-amber-500 text-slate-200' : 'border-slate-800 text-slate-500'}`}>
-                        <p className="leading-relaxed">{entry}</p>
+                    <div key={idx} className={`pl-3 border-l-2 py-1 ${idx === 0 ? 'border-amber-500 text-slate-200 bg-amber-500/5' : 'border-slate-800 text-slate-500'}`}>
+                        <p className="leading-relaxed text-xs lg:text-sm">{entry}</p>
                     </div>
                 ))}
             </div>
@@ -297,9 +291,9 @@ const App: React.FC = () => {
         <div className="mt-auto pt-6 border-t border-slate-800">
             <button 
                 onClick={resetGame}
-                className="w-full py-2 px-4 bg-red-900/20 hover:bg-red-900/40 text-red-400 text-xs uppercase font-bold tracking-wider rounded border border-red-900/50 transition-colors"
+                className="w-full py-3 px-4 bg-red-950/30 hover:bg-red-900/30 text-red-400 hover:text-red-300 text-xs uppercase font-bold tracking-widest rounded border border-red-900/30 transition-all duration-300 flex justify-center items-center gap-2 group"
             >
-                开启新文明
+                <Zap size={14} className="group-hover:text-red-200 transition-colors" /> 开启新文明
             </button>
         </div>
 

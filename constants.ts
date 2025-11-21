@@ -1,11 +1,13 @@
 
-
-
 export const CANVAS_WIDTH = 1600;
 export const CANVAS_HEIGHT = 1200;
 export const TILE_SIZE = 20;
 export const GRID_W = CANVAS_WIDTH / TILE_SIZE;
 export const GRID_H = CANVAS_HEIGHT / TILE_SIZE;
+
+// Terrain Thresholds (0.0 - 1.0)
+export const TERRAIN_WATER = 0.35;
+export const TERRAIN_MOUNTAIN = 0.65;
 
 export const COLORS = {
   FOOD: '#10b981', // Emerald 500
@@ -20,6 +22,9 @@ export const COLORS = {
   TOWER: '#94a3b8', // Slate 400
   WALL: '#78350f', // Amber 900 (Wood) or Slate for Stone
   DISASTER: '#ef4444', // Red 500
+  WATER: '#1e3a8a', // Blue 900
+  MOUNTAIN: '#0f172a', // Slate 900 (Dark)
+  GRASS: '#064e3b', // Emerald 900
 };
 
 export const BASE_STATS = {

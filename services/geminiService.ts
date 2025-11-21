@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { GameState } from "../types";
 
@@ -44,48 +45,5 @@ export const generateLore = async (gameState: GameState): Promise<string | null>
         }
         console.error("Lore generation failed", e);
         return null;
-    }
-};
-
-export const generateCivilizationSnapshot = async (gameState: GameState): Promise<string | null> => {
-    if (!process.env.API_KEY) return null;
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-    const prompt = `
-    Generate a minimalist, isometric 3D render of a simulated civilization suitable for a game screenshot.
-    
-    Scene Composition:
-    - Camera: Isometric view, looking down at a flat dark slate terrain with a subtle grid.
-    - Inhabitants: ${gameState.agents.length} small, glowing abstract humanoid figures (cyan/blue dots or capsule shapes) moving purposefully.
-    - Architecture: ${gameState.buildings.length} geometric low-poly buildings (pink cubes for houses, violet prisms for storage).
-    - Resources: Clusters of emerald green spheres (food), amber blocks (wood), and grey rocks (stone) scattered around.
-    - Atmosphere: Dark, atmospheric, sci-fi UI interface aesthetic.
-    ${gameState.disasterActive ? `- Event: The scene is affected by a ${gameState.disasterType}, showing dynamic weather or shaking effects.` : '- Mood: Peaceful and busy.'}
-    - Style: Digital art, clean lines, glowing neon accents, deep contrast.
-    `;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-image-preview',
-            contents: {
-                parts: [{ text: prompt }]
-            },
-            config: {
-                imageConfig: {
-                    imageSize: '1K',
-                    aspectRatio: "1:1"
-                }
-            }
-        });
-
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
-            if (part.inlineData) {
-                return `data:image/png;base64,${part.inlineData.data}`;
-            }
-        }
-        return null;
-    } catch (e: any) {
-        console.error("Snapshot generation failed", e);
-        throw e;
     }
 };
