@@ -25,6 +25,7 @@ export const BASE_STATS = {
   maxCarry: 10,
   lifespan: 2000, // Ticks
   resilience: 0.1,
+  stamina: 1000, // Energy before needing rest
 };
 
 export const COSTS = {

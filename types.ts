@@ -4,7 +4,9 @@ export enum AgentState {
   GATHERING = 'GATHERING',
   RETURNING = 'RETURNING',
   BUILDING = 'BUILDING',
-  FLEEING = 'FLEEING'
+  FLEEING = 'FLEEING',
+  MOVING_HOME = 'MOVING_HOME',
+  RESTING = 'RESTING'
 }
 
 export enum ResourceType {
@@ -26,6 +28,7 @@ export interface Stats {
   maxCarry: number;
   lifespan: number;
   resilience: number; // Resistance to disasters
+  stamina: number; // Max energy
 }
 
 export interface Agent {
@@ -35,6 +38,7 @@ export interface Agent {
   state: AgentState;
   inventory: { type: ResourceType; amount: number } | null;
   stats: Stats;
+  energy: number; // Current energy
   age: number;
   gen: number;
   color: string;

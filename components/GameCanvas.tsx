@@ -95,7 +95,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
     // Helper: Draw Humanoid
     const drawAgent = (ctx: CanvasRenderingContext2D, agent: Agent, time: number) => {
         const { x, y } = agent.position;
-        const isMoving = agent.state === AgentState.MOVING_TO_RESOURCE || agent.state === AgentState.RETURNING || agent.state === AgentState.FLEEING;
+        const isMoving = agent.state === AgentState.MOVING_TO_RESOURCE || agent.state === AgentState.RETURNING || agent.state === AgentState.FLEEING || agent.state === AgentState.MOVING_HOME;
         
         ctx.save();
         ctx.translate(x, y);
@@ -161,6 +161,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
             ctx.lineTo(3, -3 + bounce);
         }
         ctx.stroke();
+
+        // RESTING INDICATOR
+        if (agent.state === AgentState.RESTING) {
+             ctx.fillStyle = '#e2e8f0';
+             const zOffset = (time / 20) % 20;
+             ctx.font = '10px monospace';
+             ctx.globalAlpha = 1 - (zOffset / 20);
+             ctx.fillText("Z", 6, -15 - zOffset);
+             ctx.fillText("z", 10, -20 - zOffset);
+             ctx.globalAlpha = 1.0;
+        }
 
         // --- Resource Indicator (Above Head) ---
         if (agent.inventory && agent.inventory.amount > 0) {
@@ -446,7 +457,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
             ctx.strokeStyle = '#cbd5e1';
             ctx.setLineDash([2, 4]);
             gameState.agents.forEach(agent => {
-                if (agent.target && agent.state !== AgentState.IDLE) {
+                if (agent.target && agent.state !== AgentState.IDLE && agent.state !== AgentState.RESTING) {
                     ctx.beginPath();
                     ctx.moveTo(agent.position.x, agent.position.y);
                     ctx.lineTo(agent.target.x, agent.target.y);

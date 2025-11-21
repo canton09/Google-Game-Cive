@@ -86,13 +86,13 @@ const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 =
 
 // Helper: Mutate Stats
 const mutate = (parentStats: Stats): Stats => {
-    const factor = (Math.random() * MUTATION_RATE * 2) - MUTATION_RATE; // -0.1 to 0.1
     return {
         speed: Math.max(0.5, parentStats.speed * (1 + (Math.random() * 0.2 - 0.1))),
         gatheringSpeed: Math.max(0.1, parentStats.gatheringSpeed * (1 + (Math.random() * 0.2 - 0.1))),
         maxCarry: Math.max(5, parentStats.maxCarry * (1 + (Math.random() * 0.2 - 0.1))),
         lifespan: Math.max(500, parentStats.lifespan * (1 + (Math.random() * 0.2 - 0.1))),
         resilience: Math.min(0.9, Math.max(0, parentStats.resilience + (Math.random() * 0.05 - 0.025))),
+        stamina: Math.max(500, parentStats.stamina * (1 + (Math.random() * 0.2 - 0.1))),
     };
 };
 
@@ -123,6 +123,7 @@ export const initializeGame = (): GameState => {
             state: AgentState.IDLE,
             inventory: null,
             stats: { ...BASE_STATS },
+            energy: BASE_STATS.stamina,
             age: 0,
             gen: 1,
             color: `hsl(${Math.random() * 360}, 70%, 60%)`
@@ -224,25 +225,40 @@ export const tickSimulation = (state: GameState): GameState => {
     // --- Building Logic ---
     const populationCap = 5 + (newState.buildings.filter(b => b.type === 'HOUSE').length * 5);
     
-    // 1. Construct Houses (Needs Population Cap)
+    // 1. Construct Houses (CLUSTERED)
     if (newState.resources.WOOD >= COSTS.HOUSE.WOOD && newState.resources.STONE >= COSTS.HOUSE.STONE && newState.agents.length >= populationCap) {
         newState.resources.WOOD -= COSTS.HOUSE.WOOD;
         newState.resources.STONE -= COSTS.HOUSE.STONE;
-        const randomOffset = { x: (Math.random() * 200) - 100, y: (Math.random() * 200) - 100 };
+        
+        // Find an anchor building to cluster around (House or Storage)
+        const residentialBuildings = newState.buildings.filter(b => b.type === 'HOUSE' || b.type === 'STORAGE');
+        const anchor = residentialBuildings.length > 0 
+            ? residentialBuildings[Math.floor(Math.random() * residentialBuildings.length)]
+            : { position: center };
+
+        // Build close to anchor (Cluster)
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 30 + Math.random() * 20; // Very tight cluster
+        
         newState.buildings.push({
             id: `house-${newState.totalTime}`,
             type: 'HOUSE',
-            position: { x: Math.max(20, Math.min(CANVAS_WIDTH-20, center.x + randomOffset.x)), y: Math.max(20, Math.min(CANVAS_HEIGHT-20, center.y + randomOffset.y)) },
+            position: { 
+                x: Math.max(20, Math.min(CANVAS_WIDTH-20, anchor.position.x + Math.cos(angle) * distance)), 
+                y: Math.max(20, Math.min(CANVAS_HEIGHT-20, anchor.position.y + Math.sin(angle) * distance)) 
+            },
             level: 1
         });
     }
 
-    // 2. Construct Farms (If Food is fluctuating or random expansion)
+    // 2. Construct Farms (Clustered or Outer Ring)
     if (newState.resources.WOOD >= COSTS.FARM.WOOD && newState.resources.STONE >= COSTS.FARM.STONE && Math.random() < 0.01) {
         if (newState.buildings.filter(b => b.type === 'FARM').length < newState.agents.length / 3) {
             newState.resources.WOOD -= COSTS.FARM.WOOD;
             newState.resources.STONE -= COSTS.FARM.STONE;
-            const randomOffset = { x: (Math.random() * 250) - 125, y: (Math.random() * 250) - 125 };
+            
+            // Farms slightly further out from center but still relative to town
+            const randomOffset = { x: (Math.random() * 300) - 150, y: (Math.random() * 300) - 150 };
             newState.buildings.push({
                 id: `farm-${newState.totalTime}`,
                 type: 'FARM',
@@ -258,7 +274,7 @@ export const tickSimulation = (state: GameState): GameState => {
          newState.resources.IRON -= COSTS.TOWER.IRON;
          // Towers go on periphery
          const angle = Math.random() * Math.PI * 2;
-         const dist = 120 + Math.random() * 50;
+         const dist = 150 + Math.random() * 50;
          newState.buildings.push({
             id: `tower-${newState.totalTime}`,
             type: 'TOWER',
@@ -297,6 +313,7 @@ export const tickSimulation = (state: GameState): GameState => {
             state: AgentState.IDLE,
             inventory: null,
             stats: newStats,
+            energy: newStats.stamina,
             age: 0,
             gen: (parent?.gen || 0) + 1,
             color: parent ? parent.color : `hsl(${Math.random() * 360}, 70%, 60%)`
@@ -319,13 +336,13 @@ export const tickSimulation = (state: GameState): GameState => {
                 target: null,
                 state: AgentState.IDLE,
                 inventory: null,
-                stats: { ...BASE_STATS }, // Reset stats to base to prevent degeneration loop
+                stats: { ...BASE_STATS },
+                energy: BASE_STATS.stamina,
                 age: 0,
-                gen: newState.generation, // Keep current generation
+                gen: newState.generation, 
                 color: `hsl(${Math.random() * 360}, 70%, 60%)`
             });
         }
-        // Only add lore if we actually added someone and haven't spammed it recently
         if (Math.random() < 0.1) {
              newState.lore.unshift("流浪者加入了你的文明，延续了火种。");
         }
@@ -333,6 +350,39 @@ export const tickSimulation = (state: GameState): GameState => {
 
     newState.agents.forEach(agent => {
         agent.age++;
+        
+        // Safety init for existing saves
+        if (agent.energy === undefined) agent.energy = agent.stats.stamina || 500;
+        if (!agent.stats.stamina) agent.stats.stamina = 500;
+
+        // --- Energy Consumption ---
+        if (agent.state !== AgentState.RESTING) {
+            agent.energy -= 0.5; // Burn energy
+        }
+
+        // Check for rest need
+        if (agent.energy <= 0 && agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME && !newState.disasterActive) {
+            agent.state = AgentState.MOVING_HOME;
+            // Find nearest house
+            const homes = newState.buildings.filter(b => b.type === 'HOUSE' || b.type === 'STORAGE');
+            if (homes.length > 0) {
+                // Find closest
+                let closest = homes[0];
+                let minD = dist(agent.position, homes[0].position);
+                for(const h of homes) {
+                    const d = dist(agent.position, h.position);
+                    if (d < minD) {
+                        minD = d;
+                        closest = h;
+                    }
+                }
+                agent.target = closest.position;
+            } else {
+                agent.target = center;
+            }
+        }
+
+
         if (newState.disasterActive) {
              if (Math.random() > agent.stats.resilience) {
                  agent.age += 5; 
@@ -351,6 +401,30 @@ export const tickSimulation = (state: GameState): GameState => {
                 }
                 break;
 
+            case AgentState.RESTING:
+                agent.energy += 5; // Recover fast
+                if (agent.energy >= agent.stats.stamina) {
+                    agent.energy = agent.stats.stamina;
+                    agent.state = AgentState.IDLE;
+                }
+                break;
+
+            case AgentState.MOVING_HOME:
+                if (agent.target) {
+                    const d = dist(agent.position, agent.target);
+                    if (d < 10) {
+                        agent.state = AgentState.RESTING;
+                        agent.target = null;
+                    } else {
+                        const angle = Math.atan2(agent.target.y - agent.position.y, agent.target.x - agent.position.x);
+                        agent.position.x += Math.cos(angle) * agent.stats.speed;
+                        agent.position.y += Math.sin(angle) * agent.stats.speed;
+                    }
+                } else {
+                    agent.state = AgentState.IDLE;
+                }
+                break;
+
             case AgentState.IDLE:
                 let targetType = ResourceType.FOOD;
                 
@@ -365,15 +439,11 @@ export const tickSimulation = (state: GameState): GameState => {
                 if (woodStock > 400 && stoneStock > 200 && Math.random() < 0.4) targetType = ResourceType.IRON;
                 if (woodStock > 500 && Math.random() < 0.1) targetType = ResourceType.GOLD;
 
-                // --- NEW: Distributed Gathering Logic ---
-                // Find all valid nodes
                 const candidates = newState.nodes
                     .filter(n => n.type === targetType && n.amount > 0)
                     .map(n => ({ node: n, dist: dist(agent.position, n.position) }))
                     .sort((a, b) => a.dist - b.dist);
                 
-                // Pick randomly from the top 5 closest nodes to prevent clustering
-                // If less than 5, pick from whatever is available
                 const topN = 5;
                 const choicePool = candidates.slice(0, topN);
                 
@@ -382,7 +452,6 @@ export const tickSimulation = (state: GameState): GameState => {
                     agent.target = choice.node.position;
                     agent.state = AgentState.MOVING_TO_RESOURCE;
                 } else {
-                     // Wander if no resource found
                      const angle = Math.random() * Math.PI * 2;
                      agent.position.x += Math.cos(angle) * 2;
                      agent.position.y += Math.sin(angle) * 2;
@@ -408,7 +477,6 @@ export const tickSimulation = (state: GameState): GameState => {
                 const node = newState.nodes.find(n => dist(agent.position, n.position) < 15);
                 if (node && node.amount > 0) {
                     agent.inventory = agent.inventory || { type: node.type, amount: 0 };
-                    // Different resource types might be harder to gather (slower)
                     let speedModifier = 1;
                     if (node.type === ResourceType.STONE) speedModifier = 0.8;
                     if (node.type === ResourceType.IRON) speedModifier = 0.6;
@@ -420,24 +488,38 @@ export const tickSimulation = (state: GameState): GameState => {
 
                     if (agent.inventory.amount >= agent.stats.maxCarry || node.amount <= 0) {
                         agent.state = AgentState.RETURNING;
-                        agent.target = center;
+                        // Return to nearest Storage or House that acts as dropoff?
+                        // For now, just return to Center/Base to keep it simple, or find nearest STORAGE
+                        const storages = newState.buildings.filter(b => b.type === 'STORAGE');
+                        if (storages.length > 0) {
+                             let closest = storages[0];
+                             let minD = dist(agent.position, storages[0].position);
+                             for(const s of storages) {
+                                 const d = dist(agent.position, s.position);
+                                 if (d < minD) { minD = d; closest = s; }
+                             }
+                             agent.target = closest.position;
+                        } else {
+                             agent.target = center;
+                        }
                     }
                 } else {
-                    agent.state = AgentState.RETURNING; // Return whatever we have
+                    agent.state = AgentState.RETURNING;
                     agent.target = center;
                 }
                 break;
 
             case AgentState.RETURNING:
-                const distToHome = dist(agent.position, center);
-                if (distToHome < 10) {
+                // Check if we are close to our target (Storage)
+                const d = dist(agent.position, agent.target || center);
+                if (d < 10) {
                     if (agent.inventory) {
                         newState.resources[agent.inventory.type] += agent.inventory.amount;
                         agent.inventory = null;
                     }
                     agent.state = AgentState.IDLE;
                 } else {
-                    const angle = Math.atan2(center.y - agent.position.y, center.x - agent.position.x);
+                    const angle = Math.atan2((agent.target?.y || center.y) - agent.position.y, (agent.target?.x || center.x) - agent.position.x);
                     agent.position.x += Math.cos(angle) * agent.stats.speed;
                     agent.position.y += Math.sin(angle) * agent.stats.speed;
                 }
