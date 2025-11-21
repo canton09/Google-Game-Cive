@@ -325,13 +325,17 @@ export const initializeGame = (): GameState => {
         totalTime: 0,
         disasterActive: false,
         disasterType: null,
-        lore: ["第一批家庭建立了他们的家园，在荒野中开辟出第一块立足之地。"]
+        lore: ["第一批家庭建立了他们的家园，在荒野中开辟出第一块立足之地。"],
+        reproductionProgress: 0,
     };
 };
 
 export const tickSimulation = (state: GameState): GameState => {
     const newState = { ...state };
     
+    // Migration safe guard
+    if (newState.reproductionProgress === undefined) newState.reproductionProgress = 0;
+
     // Initialize checks
     if (!newState.terrain || newState.terrain.length === 0) newState.terrain = generateTerrain();
     if (newState.resources.IRON === undefined) newState.resources.IRON = 0;
@@ -463,9 +467,6 @@ export const tickSimulation = (state: GameState): GameState => {
     }
 
     // 3. Build DEFENSES (Fences & Walls)
-    // Logic: Build Wooden Fence (Wall Lvl 1) if Wood is high. 
-    // Upgrade to Stone Wall (Wall Lvl 2) if Stone is high.
-    
     const walls = newState.buildings.filter(b => b.type === 'WALL');
     
     // Upgrade Wood Fence to Stone Wall
@@ -522,36 +523,55 @@ export const tickSimulation = (state: GameState): GameState => {
     }
 
 
-    // --- Reproduction ---
+    // --- Reproduction (CUMULATIVE PROGRESS) ---
     const currentCapacity = newState.buildings.filter(b => b.type === 'HOUSE').reduce((acc, b) => acc + getHouseCapacity(b), 0);
-    // Removing hard cap if resources exist, assuming houses will be built
-    if (newState.resources.FOOD >= COSTS.SPAWN.FOOD && newState.agents.length < currentCapacity + 2) {
-        newState.resources.FOOD -= COSTS.SPAWN.FOOD;
-        const parent = newState.agents[Math.floor(Math.random() * newState.agents.length)];
-        const newStats = parent ? mutate(parent.stats) : { ...BASE_STATS };
-        
-        const newAgent: Agent = {
-            id: `gen-${newState.totalTime}`,
-            position: { ...center! },
-            target: null,
-            state: AgentState.IDLE,
-            inventory: null,
-            stats: newStats,
-            energy: newStats.stamina,
-            age: 0,
-            gen: (parent?.gen || 0) + 1,
-            color: parent ? parent.color : `hsl(${Math.random() * 360}, 70%, 60%)`,
-            homeId: null
-        };
-        
-        const home = newState.buildings.find(b => b.type === 'HOUSE' && (b.occupants?.length || 0) < getHouseCapacity(b));
-        if (home) {
-            newAgent.homeId = home.id;
-            home.occupants = home.occupants || [];
-            home.occupants.push(newAgent.id);
+    
+    // We allow a slight overpopulation (buffer) to trigger house building logic
+    const populationCapBuffer = currentCapacity + 2;
+    
+    if (newState.agents.length < populationCapBuffer && !newState.disasterActive) {
+        // Keep a safety buffer of food (e.g., 100) before contributing to growth
+        const SAFETY_FOOD_BUFFER = 100;
+        const GROWTH_RATE_PER_TICK = 0.5; // Adjust speed of growth here
+
+        if (newState.resources.FOOD > SAFETY_FOOD_BUFFER) {
+            newState.resources.FOOD -= GROWTH_RATE_PER_TICK;
+            newState.reproductionProgress += GROWTH_RATE_PER_TICK;
         }
-        newState.agents.push(newAgent);
-        newState.populationPeak = Math.max(newState.populationPeak, newState.agents.length);
+
+        // If progress bar fills up, spawn a baby
+        if (newState.reproductionProgress >= COSTS.SPAWN.FOOD) {
+             newState.reproductionProgress = 0; // Reset progress
+             
+             const parent = newState.agents[Math.floor(Math.random() * newState.agents.length)];
+             const newStats = parent ? mutate(parent.stats) : { ...BASE_STATS };
+             
+             const newAgent: Agent = {
+                 id: `gen-${newState.totalTime}`,
+                 position: { ...center! },
+                 target: null,
+                 state: AgentState.IDLE,
+                 inventory: null,
+                 stats: newStats,
+                 energy: newStats.stamina,
+                 age: 0,
+                 gen: (parent?.gen || 0) + 1,
+                 color: parent ? parent.color : `hsl(${Math.random() * 360}, 70%, 60%)`,
+                 homeId: null
+             };
+             
+             const home = newState.buildings.find(b => b.type === 'HOUSE' && (b.occupants?.length || 0) < getHouseCapacity(b));
+             if (home) {
+                 newAgent.homeId = home.id;
+                 home.occupants = home.occupants || [];
+                 home.occupants.push(newAgent.id);
+             }
+             newState.agents.push(newAgent);
+             newState.populationPeak = Math.max(newState.populationPeak, newState.agents.length);
+        }
+    } else {
+        // If we are overpopulated, progress halts (or decays slightly?)
+        // Let's just halt it.
     }
 
     // --- Agent Loop ---

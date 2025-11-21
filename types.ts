@@ -77,6 +77,7 @@ export interface GameState {
   disasterActive: boolean;
   disasterType: string | null;
   lore: string[]; // AI Generated history
+  reproductionProgress: number; // 0 to SPAWN_COST, accumulates food to create agent
 }
 
 export interface SimulationConfig {

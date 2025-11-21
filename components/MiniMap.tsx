@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { GameState, ResourceType } from '../types';
-import { COLORS, GRID_H, GRID_W, CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE, TERRAIN_MOUNTAIN, TERRAIN_WATER } from '../constants';
+import { COLORS, GRID_H, GRID_W, CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE, TERRAIN_MOUNTAIN, TERRAIN_WATER, TERRAIN_SNOW } from '../constants';
 
 interface MiniMapProps {
     gameState: GameState;
@@ -19,8 +19,8 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
         const width = canvas.width;
         const height = canvas.height;
 
-        // Clear Background
-        ctx.fillStyle = COLORS.WATER; 
+        // Background
+        ctx.fillStyle = COLORS.DEEP_WATER; 
         ctx.fillRect(0, 0, width, height);
 
         const scaleX = width / CANVAS_WIDTH;
@@ -28,52 +28,43 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
         const tileW = TILE_SIZE * scaleX;
         const tileH = TILE_SIZE * scaleY;
 
-        // 1. Draw Terrain
+        // 1. Terrain
         if (gameState.terrain) {
              for (let y = 0; y < GRID_H; y++) {
                 for (let x = 0; x < GRID_W; x++) {
                     const val = gameState.terrain[y][x];
-                    if (val >= TERRAIN_MOUNTAIN) {
-                        ctx.fillStyle = COLORS.MOUNTAIN; 
-                        ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
-                    } else if (val > TERRAIN_WATER) {
-                         // Land
-                         if (val < TERRAIN_WATER + 0.05) ctx.fillStyle = COLORS.SAND;
-                         else ctx.fillStyle = val > 0.60 ? '#334155' : COLORS.GRASS;
-                         ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
-                    }
+                    const px = x * tileW;
+                    const py = y * tileH;
+
+                    if (val > TERRAIN_SNOW) ctx.fillStyle = COLORS.SNOW;
+                    else if (val >= TERRAIN_MOUNTAIN) ctx.fillStyle = COLORS.ROCK;
+                    else if (val > TERRAIN_WATER) ctx.fillStyle = val > 0.45 ? COLORS.FOREST : COLORS.GRASS;
+                    else if (val > 0.2) ctx.fillStyle = COLORS.WATER;
+                    else ctx.fillStyle = COLORS.DEEP_WATER;
+
+                    // Only draw if not deep water for optimization/clean look
+                    if (val > 0.2) ctx.fillRect(px, py, tileW + 0.2, tileH + 0.2);
                 }
             }
         }
 
-        // 2. Draw Resources
-        gameState.nodes.forEach(node => {
-            if (node.amount <= 0) return;
-            ctx.fillStyle = COLORS[node.type];
-            const r = node.type === ResourceType.GOLD ? 2 : 1.5;
-            ctx.beginPath();
-            ctx.arc(node.position.x * scaleX, node.position.y * scaleY, r, 0, Math.PI * 2);
-            ctx.fill();
+        // 2. Agents (Bright dots)
+        ctx.fillStyle = '#38bdf8'; // Sky blue
+        gameState.agents.forEach(a => {
+            ctx.fillRect(a.position.x * scaleX, a.position.y * scaleY, 1.5, 1.5);
         });
 
-        // 3. Draw Buildings
+        // 3. Buildings
         gameState.buildings.forEach(b => {
             ctx.fillStyle = b.type === 'HOUSE' ? COLORS.HOUSE : 
                            b.type === 'STORAGE' ? COLORS.STORAGE : 
-                           b.type === 'FARM' ? COLORS.FARM : COLORS.TOWER;
-            const s = 3;
-            ctx.fillRect((b.position.x * scaleX) - s/2, (b.position.y * scaleY) - s/2, s, s);
-        });
-
-        // 4. Draw Agents (Bright dots)
-        ctx.fillStyle = '#ffffff';
-        gameState.agents.forEach(a => {
-            ctx.fillRect(a.position.x * scaleX, a.position.y * scaleY, 1, 1);
+                           b.type === 'FARM' ? COLORS.FARM : '#fff';
+            ctx.fillRect((b.position.x * scaleX) - 1, (b.position.y * scaleY) - 1, 2, 2);
         });
         
-        // Viewport border
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
-        ctx.strokeRect(0, 0, width, height);
+        // Scanline effect
+        ctx.fillStyle = 'rgba(255,255,255,0.02)';
+        for(let i=0; i<height; i+=2) ctx.fillRect(0, i, width, 1);
 
     }, [gameState]);
 
@@ -82,7 +73,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
             ref={canvasRef} 
             width={280} 
             height={210} 
-            className="w-full h-auto rounded border border-slate-700 bg-slate-950 shadow-md block"
+            className="w-full h-auto bg-[#020617] block opacity-90"
         />
     );
 };
