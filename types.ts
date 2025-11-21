@@ -36,6 +36,7 @@ export interface Agent {
   id: string;
   position: Vector2;
   target: Vector2 | null;
+  path?: Vector2[] | null; // List of waypoints to follow
   state: AgentState;
   inventory: { type: ResourceType; amount: number } | null;
   stats: Stats;
