@@ -144,7 +144,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         if (agent.state === AgentState.RESTING) {
              ctx.shadowBlur = 0;
              ctx.fillStyle = '#e2e8f0';
-             ctx.font = '10px monospace';
+             ctx.font = '14px monospace';
              const zOffset = (time / 20) % 30;
              ctx.globalAlpha = Math.max(0, 1 - (zOffset / 30));
              ctx.fillText("z", 5, -15 - zOffset/2);
@@ -344,10 +344,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
                 <div className="absolute top-8 left-1/2 transform -translate-x-1/2 
                                 bg-red-500/20 backdrop-blur-md border border-red-500/50 
                                 text-red-200 px-8 py-3 rounded-full animate-pulse 
-                                text-lg font-bold tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.4)]
+                                text-2xl font-bold tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.4)]
                                 flex items-center gap-3">
                     <span className="animate-bounce">⚠</span>
-                    {gameState.disasterType === 'EARTHQUAKE' ? 'EARTHQUAKE' : 'BLIZZARD'}
+                    {gameState.disasterType === 'EARTHQUAKE' ? '地震来袭' : '暴风雪来袭'}
                     <span className="animate-bounce">⚠</span>
                 </div>
             )}

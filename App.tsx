@@ -43,7 +43,7 @@ const App: React.FC = () => {
         if (diffSeconds > 60) {
           loadedState.resources.FOOD += diffSeconds * 0.5;
           loadedState.resources.WOOD += diffSeconds * 0.2;
-          loadedState.lore.unshift(`Timeline advanced by ${Math.floor(diffSeconds)} cycles during stasis.`);
+          loadedState.lore.unshift(`在休眠期间，文明自行演化了 ${Math.floor(diffSeconds)} 个周期。`);
         }
         setGameState(loadedState);
       } catch (e) {
@@ -89,7 +89,7 @@ const App: React.FC = () => {
   }, [gameState.totalTime]);
 
   const resetGame = () => {
-    if (confirm("Initialize new civilization protocol? Current progress will be purged.")) {
+    if (confirm("确认要重置整个文明吗？当前的所有进化进度和历史将被永久清除。")) {
         localStorage.removeItem('evociv_save_v2');
         setGameState(initializeGame());
     }
@@ -117,34 +117,34 @@ const App: React.FC = () => {
       <header className="fixed top-0 left-0 right-0 z-40 p-4 pointer-events-none flex justify-between items-start">
         
         {/* Title & Date */}
-        <div className="pointer-events-auto bg-black/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 shadow-xl flex flex-col gap-1">
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+        <div className="pointer-events-auto bg-black/40 backdrop-blur-md border border-white/5 rounded-2xl p-5 shadow-xl flex flex-col gap-1">
+            <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-indigo-400">
-                    EvoCiv
+                    EvoCiv 文明进化
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/50 font-mono tracking-widest border border-white/5">IDLE</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/50 font-mono tracking-widest border border-white/5">挂机中</span>
             </h1>
-            <div className="text-xs font-mono text-slate-400 flex items-center gap-3">
-                <span className="flex items-center gap-1"><Globe size={12} /> Year {currentYear}</span>
+            <div className="text-sm font-mono text-slate-400 flex items-center gap-4 mt-1">
+                <span className="flex items-center gap-1.5"><Globe size={14} /> {currentYear} 年</span>
                 <span className="text-slate-600">|</span>
-                <span className="flex items-center gap-1 text-sky-400"><Users size={12} /> {popCount}</span>
+                <span className="flex items-center gap-1.5 text-sky-400"><Users size={14} /> {popCount} 人</span>
             </div>
         </div>
 
         {/* Resources HUD - Floating Pill */}
-        <div className="pointer-events-auto hidden md:flex items-center gap-6 bg-black/40 backdrop-blur-xl border border-white/5 rounded-full px-8 py-3 shadow-2xl">
-             <ResourceItem label="FOOD" val={gameState.resources.FOOD} color="text-emerald-400" />
-             <ResourceItem label="WOOD" val={gameState.resources.WOOD} color="text-amber-400" />
-             <ResourceItem label="STONE" val={gameState.resources.STONE} color="text-slate-400" />
-             <ResourceItem label="IRON" val={gameState.resources.IRON || 0} color="text-zinc-300" />
-             <ResourceItem label="GOLD" val={gameState.resources.GOLD || 0} color="text-yellow-400" />
+        <div className="pointer-events-auto hidden md:flex items-center gap-8 bg-black/40 backdrop-blur-xl border border-white/5 rounded-full px-10 py-4 shadow-2xl">
+             <ResourceItem label="食物" val={gameState.resources.FOOD} color="text-emerald-400" />
+             <ResourceItem label="木材" val={gameState.resources.WOOD} color="text-amber-400" />
+             <ResourceItem label="石料" val={gameState.resources.STONE} color="text-slate-400" />
+             <ResourceItem label="铁" val={gameState.resources.IRON || 0} color="text-zinc-300" />
+             <ResourceItem label="黄金" val={gameState.resources.GOLD || 0} color="text-yellow-400" />
         </div>
 
         {/* Mobile Menu Toggle */}
         <button 
             onClick={() => setShowSidebar(!showSidebar)}
-            className="md:hidden pointer-events-auto p-2 bg-slate-800 rounded-lg border border-slate-700 text-white shadow-lg">
-            {showSidebar ? <X /> : <Menu />}
+            className="md:hidden pointer-events-auto p-3 bg-slate-800 rounded-xl border border-slate-700 text-white shadow-lg">
+            {showSidebar ? <X size={24} /> : <Menu size={24} />}
         </button>
       </header>
 
@@ -159,66 +159,66 @@ const App: React.FC = () => {
 
       {/* SIDEBAR / DASHBOARD - Glassmorphism Panel */}
       <aside className={`
-            fixed top-20 right-4 bottom-4 z-30 w-80 
-            bg-slate-950/60 backdrop-blur-xl border border-white/5 shadow-2xl rounded-2xl 
+            fixed top-24 right-6 bottom-6 z-30 w-96 
+            bg-slate-950/70 backdrop-blur-xl border border-white/5 shadow-2xl rounded-2xl 
             transform transition-transform duration-300 ease-in-out flex flex-col
             ${showSidebar ? 'translate-x-0' : 'translate-x-[110%] md:translate-x-0'}
       `}>
          
-         <div className="p-5 flex-1 overflow-y-auto custom-scrollbar space-y-6">
+         <div className="p-6 flex-1 overflow-y-auto custom-scrollbar space-y-8">
             
             {/* Minimap Section */}
-            <div className="rounded-lg overflow-hidden border border-white/10 shadow-lg">
+            <div className="rounded-xl overflow-hidden border border-white/10 shadow-lg">
                 <MiniMap gameState={gameState} />
             </div>
 
              {/* Mobile Resource View */}
-             <div className="md:hidden grid grid-cols-2 gap-2 p-2 bg-white/5 rounded-xl">
-                 <ResourceItem label="FOOD" val={gameState.resources.FOOD} color="text-emerald-400" compact />
-                 <ResourceItem label="WOOD" val={gameState.resources.WOOD} color="text-amber-400" compact />
-                 <ResourceItem label="STONE" val={gameState.resources.STONE} color="text-slate-400" compact />
-                 <ResourceItem label="GOLD" val={gameState.resources.GOLD || 0} color="text-yellow-400" compact />
+             <div className="md:hidden grid grid-cols-2 gap-3 p-3 bg-white/5 rounded-xl">
+                 <ResourceItem label="食物" val={gameState.resources.FOOD} color="text-emerald-400" compact />
+                 <ResourceItem label="木材" val={gameState.resources.WOOD} color="text-amber-400" compact />
+                 <ResourceItem label="石料" val={gameState.resources.STONE} color="text-slate-400" compact />
+                 <ResourceItem label="黄金" val={gameState.resources.GOLD || 0} color="text-yellow-400" compact />
              </div>
 
             {/* Buildings Grid */}
             <div>
-                <SectionHeader icon={<Box size={14}/>} title="Infrastructure" />
-                <div className="grid grid-cols-4 gap-2">
-                    <StatBox icon={<Home size={14}/>} val={bldHouse} label="Houses" color="bg-pink-500/20 text-pink-300 border-pink-500/30" />
-                    <StatBox icon={<Wheat size={14}/>} val={bldFarm} label="Farms" color="bg-lime-500/20 text-lime-300 border-lime-500/30" />
-                    <StatBox icon={<Package size={14}/>} val={bldStorage} label="Stores" color="bg-violet-500/20 text-violet-300 border-violet-500/30" />
-                    <StatBox icon={<Shield size={14}/>} val={bldWall} label="Walls" color="bg-slate-500/20 text-slate-300 border-slate-500/30" />
+                <SectionHeader icon={<Box size={16}/>} title="基础设施" />
+                <div className="grid grid-cols-4 gap-3">
+                    <StatBox icon={<Home size={18}/>} val={bldHouse} label="住宅" color="bg-pink-500/20 text-pink-300 border-pink-500/30" />
+                    <StatBox icon={<Wheat size={18}/>} val={bldFarm} label="农场" color="bg-lime-500/20 text-lime-300 border-lime-500/30" />
+                    <StatBox icon={<Package size={18}/>} val={bldStorage} label="仓库" color="bg-violet-500/20 text-violet-300 border-violet-500/30" />
+                    <StatBox icon={<Shield size={18}/>} val={bldWall} label="防御" color="bg-slate-500/20 text-slate-300 border-slate-500/30" />
                 </div>
             </div>
 
             {/* Genetics/Stats */}
             <div>
-                <SectionHeader icon={<Activity size={14}/>} title="Evolution Metrics" />
-                <div className="space-y-3 bg-black/20 p-3 rounded-xl border border-white/5">
+                <SectionHeader icon={<Activity size={16}/>} title="文明指数" />
+                <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/5">
                     
                     {/* Reproduction Progress */}
                     <div>
-                        <div className="flex justify-between text-[10px] mb-1 uppercase tracking-wider text-slate-400">
-                            <span className="flex items-center gap-1"><Baby size={10} /> Growth</span>
+                        <div className="flex justify-between text-xs mb-1.5 uppercase tracking-wider text-slate-400 font-bold">
+                            <span className="flex items-center gap-1.5"><Baby size={14} /> 人口增长</span>
                             <span className="font-mono text-sky-300">{(gameState.reproductionProgress || 0).toFixed(0)}/{COSTS.SPAWN.FOOD}</span>
                         </div>
-                        <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                             <div className="h-full bg-sky-500 shadow-[0_0_10px_currentColor]" style={{ width: `${Math.min(100, ((gameState.reproductionProgress || 0) / COSTS.SPAWN.FOOD) * 100)}%` }}></div>
                         </div>
                     </div>
 
-                    <ProgressBar label="Mobility" val={popCount ? gameState.agents.reduce((a, c) => a + c.stats.speed, 0)/popCount : 0} max={4} color="bg-indigo-500" />
-                    <ProgressBar label="Productivity" val={popCount ? gameState.agents.reduce((a, c) => a + c.stats.gatheringSpeed, 0)/popCount : 0} max={2} color="bg-emerald-500" />
-                    <ProgressBar label="Strength" val={popCount ? gameState.agents.reduce((a, c) => a + c.stats.maxCarry, 0)/popCount : 0} max={30} color="bg-amber-500" />
+                    <ProgressBar label="移动速度" val={popCount ? gameState.agents.reduce((a, c) => a + c.stats.speed, 0)/popCount : 0} max={4} color="bg-indigo-500" />
+                    <ProgressBar label="采集效率" val={popCount ? gameState.agents.reduce((a, c) => a + c.stats.gatheringSpeed, 0)/popCount : 0} max={2} color="bg-emerald-500" />
+                    <ProgressBar label="负重能力" val={popCount ? gameState.agents.reduce((a, c) => a + c.stats.maxCarry, 0)/popCount : 0} max={30} color="bg-amber-500" />
                 </div>
             </div>
 
             {/* Lore Feed */}
-            <div className="flex flex-col h-48">
-                <SectionHeader icon={<Database size={14}/>} title="System Logs" />
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar mask-linear-fade">
+            <div className="flex flex-col h-56">
+                <SectionHeader icon={<Database size={16}/>} title="系统日志" />
+                <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 custom-scrollbar mask-linear-fade">
                     {gameState.lore.map((entry, i) => (
-                        <div key={i} className={`text-xs p-2 rounded border-l-2 ${i===0 ? 'border-sky-500 bg-sky-900/10 text-sky-100' : 'border-slate-700 text-slate-500'}`}>
+                        <div key={i} className={`text-sm p-2.5 rounded border-l-[3px] leading-relaxed ${i===0 ? 'border-sky-500 bg-sky-900/10 text-sky-100 shadow-sm' : 'border-slate-700 text-slate-400'}`}>
                             {entry}
                         </div>
                     ))}
@@ -228,12 +228,12 @@ const App: React.FC = () => {
          </div>
 
          {/* Footer Controls */}
-         <div className="p-4 border-t border-white/5 bg-black/20">
-             <button onClick={resetGame} className="w-full py-2 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs uppercase font-bold tracking-widest transition-all">
-                 Reboot System
+         <div className="p-5 border-t border-white/5 bg-black/20">
+             <button onClick={resetGame} className="w-full py-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-sm uppercase font-bold tracking-widest transition-all hover:shadow-lg hover:shadow-red-900/20">
+                 重置文明进程
              </button>
-             <div className="mt-2 text-[10px] text-center text-slate-700 font-mono">
-                 AUTO-SAVE ACTIVE • {new Date(lastSaved).toLocaleTimeString()}
+             <div className="mt-3 text-xs text-center text-slate-600 font-mono">
+                 自动保存运行中 • {new Date(lastSaved).toLocaleTimeString()}
              </div>
          </div>
       </aside>
@@ -246,34 +246,34 @@ const App: React.FC = () => {
 
 const ResourceItem = ({label, val, color, compact}: {label: string, val: number, color: string, compact?: boolean}) => (
     <div className={`flex flex-col ${compact ? 'items-start' : 'items-center'}`}>
-        <span className={`text-[10px] font-bold tracking-wider text-slate-500 ${compact ? '' : 'mb-0.5'}`}>{label}</span>
-        <span className={`font-mono font-medium ${compact ? 'text-sm' : 'text-lg'} ${color} drop-shadow-lg`}>
+        <span className={`text-xs font-bold tracking-wider text-slate-500 ${compact ? '' : 'mb-1'}`}>{label}</span>
+        <span className={`font-mono font-bold ${compact ? 'text-base' : 'text-xl'} ${color} drop-shadow-md`}>
             {Math.floor(val).toLocaleString()}
         </span>
     </div>
 );
 
 const SectionHeader = ({icon, title}: {icon: React.ReactNode, title: string}) => (
-    <h3 className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-3 flex items-center gap-2">
+    <h3 className="text-slate-500 text-xs uppercase font-bold tracking-widest mb-4 flex items-center gap-2.5">
         {icon} {title}
     </h3>
 );
 
 const StatBox = ({icon, val, label, color}: any) => (
-    <div className={`p-2 rounded-lg border flex flex-col items-center gap-1 ${color} transition-transform hover:scale-105`}>
+    <div className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 ${color} transition-transform hover:scale-105 shadow-lg`}>
         {icon}
-        <span className="text-lg font-bold font-mono leading-none mt-1">{val}</span>
-        <span className="text-[9px] opacity-70 uppercase">{label}</span>
+        <span className="text-xl font-bold font-mono leading-none mt-1">{val}</span>
+        <span className="text-xs opacity-80 uppercase font-semibold">{label}</span>
     </div>
 );
 
 const ProgressBar = ({label, val, max, color}: any) => (
     <div>
-        <div className="flex justify-between text-[10px] mb-1 uppercase tracking-wider text-slate-400">
+        <div className="flex justify-between text-xs mb-1.5 uppercase tracking-wider text-slate-400 font-bold">
             <span>{label}</span>
             <span className="font-mono text-white">{val.toFixed(2)}</span>
         </div>
-        <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
             <div className={`h-full ${color} shadow-[0_0_10px_currentColor]`} style={{ width: `${Math.min(100, (val / max) * 100)}%` }}></div>
         </div>
     </div>
