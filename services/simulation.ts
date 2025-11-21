@@ -1,14 +1,14 @@
 
 import { Agent, AgentState, Building, GameState, ResourceNode, ResourceType, Vector2, Stats } from "../types";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COSTS, BASE_STATS, MUTATION_RATE, GRID_W, GRID_H, TILE_SIZE, HOUSE_CAPACITY, COLORS, BUILDINGS_CONFIG, TERRAIN_MOUNTAIN, TERRAIN_WATER } from "../constants";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, COSTS, BASE_STATS, GRID_W, GRID_H, TILE_SIZE, HOUSE_CAPACITY, BUILDINGS_CONFIG, TERRAIN_MOUNTAIN, TERRAIN_WATER } from "../constants";
 
-// Helper: Distance
+// 辅助函数：计算距离
 const dist = (v1: Vector2, v2: Vector2) => Math.sqrt(Math.pow(v2.x - v1.x, 2) + Math.pow(v2.y - v1.y, 2));
 
-// Helper: Terrain Generation with Biomes
+// 辅助函数：地形生成与生物群落
 export const generateTerrain = (): number[][] => {
     const map: number[][] = [];
-    // Init noise
+    // 初始化噪声
     for (let y = 0; y < GRID_H; y++) {
         const row: number[] = [];
         for (let x = 0; x < GRID_W; x++) {
@@ -17,7 +17,7 @@ export const generateTerrain = (): number[][] => {
         map.push(row);
     }
 
-    // Smooth (Increased iterations for larger landmasses)
+    // 平滑处理 (增加迭代次数以形成更大的地块)
     for (let i = 0; i < 5; i++) {
         const newMap = JSON.parse(JSON.stringify(map));
         for (let y = 0; y < GRID_H; y++) {
@@ -44,11 +44,11 @@ export const generateTerrain = (): number[][] => {
         }
     }
 
-    // Increase Contrast to create distinct biomes
+    // 增加对比度以形成明显的生物群落
     for(let y=0; y<GRID_H; y++) {
         for(let x=0; x<GRID_W; x++) {
             let val = map[y][x];
-            val = (val - 0.5) * 2.0 + 0.5; // Stronger contrast
+            val = (val - 0.5) * 2.0 + 0.5; 
             map[y][x] = Math.max(0, Math.min(1, val));
         }
     }
@@ -56,7 +56,7 @@ export const generateTerrain = (): number[][] => {
     return map;
 };
 
-// Check if a coordinate is passable (walkable)
+// 检查坐标是否可通行
 const isPassable = (x: number, y: number, terrain: number[][]): boolean => {
     if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) return false;
     const gx = Math.floor(x / TILE_SIZE);
@@ -67,11 +67,9 @@ const isPassable = (x: number, y: number, terrain: number[][]): boolean => {
     return val > TERRAIN_WATER && val < TERRAIN_MOUNTAIN;
 };
 
-// Check if a spot is valid for building (Passable + Not reserved + Radius check)
+// 检查是否可以建造 (可通行 + 未被占用 + 半径检查)
 const isBuildable = (x: number, y: number, terrain: number[][], radius: number = 5): boolean => {
-    // Check center
     if (!isPassable(x, y, terrain)) return false;
-    // Check corners of the footprint to ensure building doesn't hang over water
     if (!isPassable(x - radius, y - radius, terrain)) return false;
     if (!isPassable(x + radius, y - radius, terrain)) return false;
     if (!isPassable(x - radius, y + radius, terrain)) return false;
@@ -79,7 +77,7 @@ const isBuildable = (x: number, y: number, terrain: number[][], radius: number =
     return true;
 };
 
-// Helper: Biome-aware Random Position
+// 辅助函数：基于生物群落的随机生成点
 const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 => {
     let bestPos = { x: CANVAS_WIDTH/2, y: CANVAS_HEIGHT/2 };
     let maxAttempts = 50;
@@ -92,7 +90,6 @@ const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 =
         const px = gx * TILE_SIZE + (Math.random() * TILE_SIZE);
         const py = gy * TILE_SIZE + (Math.random() * TILE_SIZE);
 
-        // Must be accessible
         if (val <= TERRAIN_WATER || val >= TERRAIN_MOUNTAIN) continue;
 
         let valid = false;
@@ -114,21 +111,19 @@ const getSpawnPos = (type: ResourceType | 'ANY', terrain: number[][]): Vector2 =
     return bestPos;
 };
 
-// Helper: Find valid building spot using concentric spiral around center
+// 辅助函数：寻找有效的建筑点 (螺旋搜索)
 const findConstructionSpot = (center: Vector2, buildings: Building[], terrain: number[][], minRadius: number = 40): Vector2 => {
     let radius = minRadius;
-    let angle = 0;
-    const maxRadius = 2000; // Increased max radius for expansion
+    let angle = Math.random() * Math.PI * 2; 
+    const maxRadius = 2000; 
     const angleStep = 0.5; 
     
     while (radius < maxRadius) {
         const x = center.x + Math.cos(angle) * radius;
         const y = center.y + Math.sin(angle) * radius;
         
-        // Bounds & Terrain check (Radius 15 approx for buildings)
         if (x > 50 && x < CANVAS_WIDTH - 50 && y > 50 && y < CANVAS_HEIGHT - 50) {
              if (isBuildable(x, y, terrain, 15)) {
-                 // Collision check with other buildings
                  const collision = buildings.some(b => dist(b.position, {x,y}) < 25); 
                  if (!collision) {
                      return {x, y};
@@ -137,7 +132,7 @@ const findConstructionSpot = (center: Vector2, buildings: Building[], terrain: n
         }
         
         angle += angleStep;
-        if (angle > Math.PI * 2) {
+        if (angle > Math.PI * 2 + (Math.random() * 2)) { 
             angle = 0;
             radius += 20; 
         }
@@ -150,17 +145,13 @@ const mutate = (parentStats: Stats): Stats => {
         speed: Math.max(0.5, parentStats.speed * (1 + (Math.random() * 0.2 - 0.1))),
         gatheringSpeed: Math.max(0.1, parentStats.gatheringSpeed * (1 + (Math.random() * 0.2 - 0.1))),
         maxCarry: Math.max(5, parentStats.maxCarry * (1 + (Math.random() * 0.2 - 0.1))),
-        lifespan: Math.max(500, parentStats.lifespan * (1 + (Math.random() * 0.2 - 0.1))),
+        lifespan: Infinity, // 永生
         resilience: Math.min(0.9, Math.max(0, parentStats.resilience + (Math.random() * 0.05 - 0.025))),
         stamina: Math.max(500, parentStats.stamina * (1 + (Math.random() * 0.2 - 0.1))),
     };
 };
 
-// --- Helper: Upgrades & Stats ---
-
-const getHouseCapacity = (building: Building) => {
-    return HOUSE_CAPACITY + (building.level - 1) * BUILDINGS_CONFIG.HOUSE.CAPACITY_PER_LEVEL;
-};
+// --- 升级与属性计算 ---
 
 const getFarmProduction = (building: Building) => {
     return BUILDINGS_CONFIG.FARM.BASE_PRODUCTION + (building.level - 1) * BUILDINGS_CONFIG.FARM.PRODUCTION_PER_LEVEL;
@@ -177,7 +168,7 @@ const getUpgradeCost = (type: 'HOUSE' | 'STORAGE' | 'FARM', currentLevel: number
     };
 };
 
-// --- Pathfinding (A*) ---
+// --- 寻路算法 (A*) ---
 
 const getGridPos = (p: Vector2) => ({ x: Math.floor(p.x / TILE_SIZE), y: Math.floor(p.y / TILE_SIZE) });
 
@@ -185,12 +176,10 @@ const findPath = (start: Vector2, end: Vector2, terrain: number[][]): Vector2[] 
     const startNode = getGridPos(start);
     const endNode = getGridPos(end);
 
-    // Optimization: Check direct line first? No, terrain is complex.
-    // Optimization: If straight line distance is small (< 2 tiles), just go direct
     if (Math.abs(startNode.x - endNode.x) <= 1 && Math.abs(startNode.y - endNode.y) <= 1) return [end];
 
-    // Quick bounds check for end node passability (if end is water, find nearest land?)
-    // For now, assume targets are valid (resources are on land).
+    // 简化版寻路：如果距离太远，直接直线走，避免卡顿
+    if (dist(start, end) > 500) return [end];
 
     const openList: any[] = [];
     const closedSet = new Set<string>();
@@ -208,22 +197,19 @@ const findPath = (start: Vector2, end: Vector2, terrain: number[][]): Vector2[] 
     openList.push(startN);
 
     let iterations = 0;
-    const MAX_ITERATIONS = 1500; // Limit to prevent freeze
+    const MAX_ITERATIONS = 800; // 性能优化限制
 
     while (openList.length > 0 && iterations < MAX_ITERATIONS) {
         iterations++;
-        // Find lowest F
         let lowInd = 0;
         for(let i=1; i<openList.length; i++) {
             if(openList[i].f < openList[lowInd].f) { lowInd = i; }
         }
         const currentNode = openList[lowInd];
 
-        // Reached target?
         if (Math.abs(currentNode.x - endNode.x) <= 1 && Math.abs(currentNode.y - endNode.y) <= 1) {
              const path: Vector2[] = [];
              let curr = currentNode;
-             // Reconstruct
              while(curr.parent) {
                  path.push({ 
                     x: curr.x * TILE_SIZE + TILE_SIZE/2, 
@@ -231,15 +217,12 @@ const findPath = (start: Vector2, end: Vector2, terrain: number[][]): Vector2[] 
                  });
                  curr = curr.parent;
              }
-             // Path is reversed (End -> Start). Reverse it to be Start -> End.
-             // Note: We do not include the start node in the path.
              return path.reverse();
         }
 
         openList.splice(lowInd, 1);
         closedSet.add(currentNode.id);
 
-        // Neighbors: 8 directions for smoother movement
         const neighbors = [
             {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0},
             {x:-1, y:-1}, {x:1, y:-1}, {x:-1, y:1}, {x:1, y:1}
@@ -251,7 +234,6 @@ const findPath = (start: Vector2, end: Vector2, terrain: number[][]): Vector2[] 
             
             if (nx < 0 || nx >= GRID_W || ny < 0 || ny >= GRID_H) continue;
             
-            // Passability Check
             const val = terrain[ny][nx];
             if (val <= TERRAIN_WATER || val >= TERRAIN_MOUNTAIN) continue;
 
@@ -267,7 +249,7 @@ const findPath = (start: Vector2, end: Vector2, terrain: number[][]): Vector2[] 
             if (!neighbor) {
                 neighbor = createNode(nx, ny, currentNode);
                 neighbor.g = gScore;
-                neighbor.h = Math.abs(nx - endNode.x) + Math.abs(ny - endNode.y); // Manhattan Heuristic
+                neighbor.h = Math.abs(nx - endNode.x) + Math.abs(ny - endNode.y);
                 neighbor.f = neighbor.g + neighbor.h;
                 openList.push(neighbor);
             } else if (gScore < neighbor.g) {
@@ -278,17 +260,15 @@ const findPath = (start: Vector2, end: Vector2, terrain: number[][]): Vector2[] 
         }
     }
     
-    // Fallback: If pathfinding fails (e.g. island), return direct target to attempt slide
     return [end];
 };
 
-// --- Movement Helper ---
+// --- 移动辅助 ---
 const moveAgentTowards = (agent: Agent, target: Vector2, terrain: number[][]) => {
     const dx = target.x - agent.position.x;
     const dy = target.y - agent.position.y;
     const distToTarget = Math.sqrt(dx*dx + dy*dy);
     
-    // If close enough to snap
     if (distToTarget < agent.stats.speed) {
         if (isPassable(target.x, target.y, terrain)) {
             agent.position.x = target.x;
@@ -304,12 +284,11 @@ const moveAgentTowards = (agent: Agent, target: Vector2, terrain: number[][]) =>
     const nextX = agent.position.x + vx;
     const nextY = agent.position.y + vy;
 
-    // Collision Check: Try full move
     if (isPassable(nextX, nextY, terrain)) {
         agent.position.x = nextX;
         agent.position.y = nextY;
     } else {
-        // Slide along axes
+        // 简单的碰撞滑行
         let moved = false;
         if (isPassable(nextX, agent.position.y, terrain)) {
             agent.position.x = nextX;
@@ -319,9 +298,7 @@ const moveAgentTowards = (agent: Agent, target: Vector2, terrain: number[][]) =>
             moved = true;
         }
         
-        // If blocked completely (corner or dead end)
         if (!moved) {
-            // Small random jitter to help unstuck
             const jitterAngle = angle + (Math.random() > 0.5 ? 1.5 : -1.5);
             const jx = agent.position.x + Math.cos(jitterAngle) * (agent.stats.speed * 0.5);
             const jy = agent.position.y + Math.sin(jitterAngle) * (agent.stats.speed * 0.5);
@@ -333,11 +310,8 @@ const moveAgentTowards = (agent: Agent, target: Vector2, terrain: number[][]) =>
     }
 };
 
-// Helper to manage path following
 const followPath = (agent: Agent, finalTarget: Vector2, terrain: number[][]) => {
-    // 1. Recalculate path if missing or empty (but we have a distinct target)
     if (!agent.path || agent.path.length === 0) {
-        // Only pathfind if distant, otherwise direct move
         if (dist(agent.position, finalTarget) > TILE_SIZE) {
              agent.path = findPath(agent.position, finalTarget, terrain);
         } else {
@@ -345,19 +319,13 @@ const followPath = (agent: Agent, finalTarget: Vector2, terrain: number[][]) => 
         }
     }
 
-    // 2. Follow Waypoints
     if (agent.path && agent.path.length > 0) {
         const nextWaypoint = agent.path[0];
-        
-        // Move towards current waypoint
         moveAgentTowards(agent, nextWaypoint, terrain);
-        
-        // If reached waypoint, pop it
         if (dist(agent.position, nextWaypoint) < Math.max(5, agent.stats.speed * 1.5)) {
             agent.path.shift();
         }
     } else {
-        // Fallback direct
         moveAgentTowards(agent, finalTarget, terrain);
     }
 };
@@ -366,16 +334,12 @@ const followPath = (agent: Agent, finalTarget: Vector2, terrain: number[][]) => 
 export const initializeGame = (): GameState => {
     const terrain = generateTerrain();
     
-    // Find a valid spawn center (not water/mountain)
     let center = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
-    // Search for valid center
     let foundCenter = false;
-    // Spiral out from center to find valid land
     let r = 0, a = 0;
     while(!foundCenter && r < 800) {
         const cx = center.x + Math.cos(a) * r;
         const cy = center.y + Math.sin(a) * r;
-        // Check radius 20 for spawn center safety
         if (isBuildable(cx, cy, terrain, 20)) {
             center = {x: cx, y: cy};
             foundCenter = true;
@@ -384,44 +348,22 @@ export const initializeGame = (): GameState => {
         if (a > Math.PI*2) { a=0; r+=20; }
     }
 
-    // Initial Nodes
     const nodes: ResourceNode[] = [];
-    for (let i = 0; i < 6; i++) nodes.push({ id: `f-${i}`, type: ResourceType.FOOD, position: getSpawnPos(ResourceType.FOOD, terrain), amount: 1000, maxAmount: 1000 });
-    for (let i = 0; i < 5; i++) nodes.push({ id: `w-${i}`, type: ResourceType.WOOD, position: getSpawnPos(ResourceType.WOOD, terrain), amount: 5000, maxAmount: 5000 });
-    for (let i = 0; i < 4; i++) nodes.push({ id: `s-${i}`, type: ResourceType.STONE, position: getSpawnPos(ResourceType.STONE, terrain), amount: 5000, maxAmount: 5000 });
-    for (let i = 0; i < 2; i++) nodes.push({ id: `i-${i}`, type: ResourceType.IRON, position: getSpawnPos(ResourceType.IRON, terrain), amount: 2000, maxAmount: 2000 });
-    for (let i = 0; i < 1; i++) nodes.push({ id: `g-${i}`, type: ResourceType.GOLD, position: getSpawnPos(ResourceType.GOLD, terrain), amount: 500, maxAmount: 500 });
+    for (let i = 0; i < 8; i++) nodes.push({ id: `f-${i}`, type: ResourceType.FOOD, position: getSpawnPos(ResourceType.FOOD, terrain), amount: 2000, maxAmount: 2000 });
+    for (let i = 0; i < 6; i++) nodes.push({ id: `w-${i}`, type: ResourceType.WOOD, position: getSpawnPos(ResourceType.WOOD, terrain), amount: 5000, maxAmount: 5000 });
+    for (let i = 0; i < 5; i++) nodes.push({ id: `s-${i}`, type: ResourceType.STONE, position: getSpawnPos(ResourceType.STONE, terrain), amount: 5000, maxAmount: 5000 });
+    for (let i = 0; i < 3; i++) nodes.push({ id: `i-${i}`, type: ResourceType.IRON, position: getSpawnPos(ResourceType.IRON, terrain), amount: 3000, maxAmount: 3000 });
+    for (let i = 0; i < 2; i++) nodes.push({ id: `g-${i}`, type: ResourceType.GOLD, position: getSpawnPos(ResourceType.GOLD, terrain), amount: 1000, maxAmount: 1000 });
 
-    // Initial Buildings
     const buildings: Building[] = [
         { id: 'base', type: 'STORAGE', position: center, level: 1, occupants: [] }
     ];
 
-    // Initial Agents
     const agents: Agent[] = [];
     const initPop = 6;
     
-    for (let i = 0; i < initPop; i++) {
-        const agent: Agent = {
-            id: `init-${i}`,
-            position: { x: center.x + (Math.random() * 20 - 10), y: center.y + (Math.random() * 20 - 10) },
-            target: null,
-            path: null,
-            state: AgentState.IDLE,
-            inventory: null,
-            stats: { ...BASE_STATS },
-            energy: BASE_STATS.stamina,
-            age: 0,
-            gen: 1,
-            color: `hsl(${Math.random() * 360}, 70%, 60%)`,
-            homeId: null
-        };
-        agents.push(agent);
-    }
-
-    // Create initial houses
-    const housesNeeded = Math.ceil(initPop / HOUSE_CAPACITY);
-    for(let h=0; h<housesNeeded; h++) {
+    // 初始房屋
+    for(let h=0; h<initPop; h++) {
          const pos = findConstructionSpot(center, buildings, terrain, 40);
          const houseId = `house-init-${h}`;
          buildings.push({
@@ -433,21 +375,28 @@ export const initializeGame = (): GameState => {
          });
     }
 
-    // Assign homes
-    let currentHouseIdx = 0;
-    agents.forEach(agent => {
-        let house = buildings.filter(b => b.type === 'HOUSE')[currentHouseIdx];
-        if (!house) {
-            currentHouseIdx = 0;
-            house = buildings.filter(b => b.type === 'HOUSE')[0];
-        }
+    for (let i = 0; i < initPop; i++) {
+        const agent: Agent = {
+            id: `init-${i}`,
+            position: { x: center.x + (Math.random() * 20 - 10), y: center.y + (Math.random() * 20 - 10) },
+            target: null,
+            path: null,
+            state: AgentState.IDLE,
+            inventory: null,
+            stats: { ...BASE_STATS, lifespan: Infinity },
+            energy: BASE_STATS.stamina,
+            age: 0,
+            gen: 1,
+            color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+            homeId: `house-init-${i}`
+        };
+        const house = buildings.find(b => b.id === agent.homeId);
         if (house) {
-            agent.homeId = house.id;
             house.occupants = house.occupants || [];
             house.occupants.push(agent.id);
-            if (house.occupants.length >= getHouseCapacity(house)) currentHouseIdx++;
         }
-    });
+        agents.push(agent);
+    }
 
     return {
         resources: { FOOD: 50, WOOD: 100, STONE: 0, IRON: 0, GOLD: 0 },
@@ -460,18 +409,47 @@ export const initializeGame = (): GameState => {
         totalTime: 0,
         disasterActive: false,
         disasterType: null,
-        lore: ["第一批家庭建立了他们的家园，在荒野中开辟出第一块立足之地。"],
+        lore: ["文明的火种已点燃，先驱者们在荒野中建立起第一个聚落。"],
         reproductionProgress: 0,
     };
+};
+
+// --- 智能任务选择 ---
+const pickResourceTarget = (agent: Agent, state: GameState, needs: Record<ResourceType, number>): ResourceType => {
+    // 加权随机选择算法
+    const types = [ResourceType.FOOD, ResourceType.WOOD, ResourceType.STONE, ResourceType.IRON, ResourceType.GOLD];
+    let totalWeight = 0;
+    const weights: number[] = [];
+
+    types.forEach(type => {
+        // 基础权重：需求量 (0-10)
+        let w = Math.max(0, needs[type]);
+        
+        // 距离修正：如果附近有该资源，稍微增加权重
+        const nearestNode = state.nodes.find(n => n.type === type && n.amount > 0 && dist(agent.position, n.position) < 300);
+        if (nearestNode) w *= 1.5;
+
+        // 随机因子 (让个体有差异)
+        w *= (0.8 + Math.random() * 0.4);
+
+        weights.push(w);
+        totalWeight += w;
+    });
+
+    if (totalWeight === 0) return ResourceType.FOOD;
+
+    let random = Math.random() * totalWeight;
+    for(let i=0; i<weights.length; i++) {
+        random -= weights[i];
+        if (random <= 0) return types[i];
+    }
+    return ResourceType.FOOD;
 };
 
 export const tickSimulation = (state: GameState): GameState => {
     const newState = { ...state };
     
-    // Migration safe guard
     if (newState.reproductionProgress === undefined) newState.reproductionProgress = 0;
-
-    // Initialize checks
     if (!newState.terrain || newState.terrain.length === 0) newState.terrain = generateTerrain();
     if (newState.resources.IRON === undefined) newState.resources.IRON = 0;
     if (newState.resources.GOLD === undefined) newState.resources.GOLD = 0;
@@ -481,9 +459,58 @@ export const tickSimulation = (state: GameState): GameState => {
     if (!center) center = { x: CANVAS_WIDTH/2, y: CANVAS_HEIGHT/2 };
 
     newState.totalTime += 1;
+    const popCount = newState.agents.length;
 
-    // --- Production ---
-    // UNLIMITED RESOURCE ACCUMULATION
+    // --- 需求计算 (文明大脑) ---
+    // 1. 生存需求: 每个人需要一定的食物储备
+    const foodGoal = popCount * 30 + 200; 
+    const foodNeed = Math.max(0, (foodGoal - newState.resources.FOOD) / 50); // 范围约 0 - 10+
+
+    // 2. 建设需求: 检查我们是否能负担得起下一个建筑
+    const farmCost = COSTS.FARM;
+    const storageCost = COSTS.STORAGE;
+    const wallCost = COSTS.WALL_WOOD;
+
+    // 如果食物少，需要造农场，对木/石需求增加
+    let woodNeed = 1; 
+    let stoneNeed = 0.5;
+    let ironNeed = 0.1;
+    let goldNeed = 0.05;
+
+    // 建筑优先级逻辑
+    const numFarms = newState.buildings.filter(b => b.type === 'FARM').length;
+    const numStorage = newState.buildings.filter(b => b.type === 'STORAGE').length;
+    
+    if (newState.resources.FOOD < foodGoal && numFarms < popCount / 2) {
+        // 极度需要农场
+        woodNeed += 5;
+        stoneNeed += 2;
+    }
+
+    if (newState.resources.WOOD > 800 || newState.resources.STONE > 500) {
+        // 资源快满了，需要仓库
+        woodNeed += 3;
+        stoneNeed += 3;
+    }
+
+    if (newState.resources.WOOD > 300 && newState.resources.STONE > 200) {
+        // 资源富裕，可以搞防御和高级资源
+        ironNeed += 2;
+        goldNeed += 1;
+        stoneNeed += 1; // 墙需要石/木
+    }
+
+    // 归一化需求权重
+    const needs: Record<ResourceType, number> = {
+        [ResourceType.FOOD]: Math.min(15, foodNeed * 2), // 食物始终是高优先级如果短缺
+        [ResourceType.WOOD]: Math.min(10, woodNeed),
+        [ResourceType.STONE]: Math.min(10, stoneNeed),
+        [ResourceType.IRON]: Math.min(8, ironNeed),
+        [ResourceType.GOLD]: Math.min(5, goldNeed)
+    };
+
+
+    // --- 生产 (农场) ---
     if (newState.totalTime % 200 === 0) { 
         const farms = newState.buildings.filter(b => b.type === 'FARM');
         let production = 0;
@@ -491,7 +518,7 @@ export const tickSimulation = (state: GameState): GameState => {
         newState.resources.FOOD += production;
     }
 
-    // --- Disaster ---
+    // --- 灾难系统 ---
     if (!newState.disasterActive && Math.random() < 0.00002) { 
         newState.disasterActive = true;
         newState.disasterType = Math.random() > 0.5 ? 'EARTHQUAKE' : 'BLIZZARD';
@@ -509,7 +536,7 @@ export const tickSimulation = (state: GameState): GameState => {
         }
     }
 
-    // --- Resources Regeneration ---
+    // --- 资源再生 ---
     newState.nodes.forEach(node => {
         if (node.amount < node.maxAmount && Math.random() < 0.01 && !newState.disasterActive) node.amount++;
         if (node.amount <= 0 && Math.random() < 0.001) {
@@ -521,102 +548,60 @@ export const tickSimulation = (state: GameState): GameState => {
     const canAfford = (cost: {WOOD: number, STONE: number}, multiplier: number = 1) => 
         newState.resources.WOOD >= cost.WOOD * multiplier && newState.resources.STONE >= cost.STONE * multiplier;
 
-    // --- CITY UPGRADES (AUTOMATED INFINITE) ---
-    if (newState.totalTime % 50 === 0 && !newState.disasterActive) {
-        
-        // Storage
-        const storages = newState.buildings.filter(b => b.type === 'STORAGE');
-        storages.sort((a,b) => a.level - b.level);
-        if (storages[0]) {
-            const cost = getUpgradeCost('STORAGE', storages[0].level);
-            if (canAfford(cost, 2)) {
-                newState.resources.WOOD -= cost.WOOD;
-                newState.resources.STONE -= cost.STONE;
-                storages[0].level++;
-                storages[0].lastLevelUpTime = newState.totalTime;
+    // --- 自动建造与升级逻辑 ---
+    
+    // 1. 农场建造 (基于人口压力)
+    if (canAfford(COSTS.FARM)) {
+        // 如果食物产出跟不上或者人口太多
+        const idealFarms = Math.ceil(popCount / 2.5);
+        if (numFarms < idealFarms) {
+             newState.resources.WOOD -= COSTS.FARM.WOOD;
+             newState.resources.STONE -= COSTS.FARM.STONE;
+             const pos = findConstructionSpot(center, newState.buildings, newState.terrain, 60);
+             newState.buildings.push({ id: `farm-${newState.totalTime}`, type: 'FARM', position: pos, level: 1 });
+             newState.lore.unshift("居民们开垦了新的农田以应对人口增长。");
+        }
+    }
+
+    // 2. 仓库建造/升级 (基于资源溢出)
+    const storages = newState.buildings.filter(b => b.type === 'STORAGE');
+    if (storages.length > 0) {
+        // 升级优先
+        const mainStorage = storages[0];
+        const upgradeCost = getUpgradeCost('STORAGE', mainStorage.level);
+        if (canAfford(upgradeCost)) {
+            // 如果资源快满了，升级
+            // 简化判定：只要资源足够多就尝试升级，增加宏伟感
+            if (newState.resources.WOOD > 1000 && newState.resources.STONE > 500) {
+                 newState.resources.WOOD -= upgradeCost.WOOD;
+                 newState.resources.STONE -= upgradeCost.STONE;
+                 mainStorage.level++;
+                 newState.lore.unshift("主城堡进行了扩建，更加宏伟了。");
             }
         }
+    }
 
-        // Houses
-        const houses = newState.buildings.filter(b => b.type === 'HOUSE');
-        const totalPop = newState.agents.length;
-        const totalCap = houses.reduce((sum, b) => sum + getHouseCapacity(b), 0);
-        
-        if (totalPop >= totalCap * 0.8) {
-             const upgradeableHouses = houses.filter(b => b.level < BUILDINGS_CONFIG.HOUSE.MAX_LEVEL);
-             if (upgradeableHouses.length > 0) {
-                upgradeableHouses.sort((a,b) => a.level - b.level);
-                const cost = getUpgradeCost('HOUSE', upgradeableHouses[0].level);
-                if (canAfford(cost, 1.5)) {
-                   newState.resources.WOOD -= cost.WOOD;
-                   newState.resources.STONE -= cost.STONE;
-                   upgradeableHouses[0].level++;
-                   upgradeableHouses[0].lastLevelUpTime = newState.totalTime;
-                }
-             }
-        }
-
-        // Farms
-        const farms = newState.buildings.filter(b => b.type === 'FARM');
-        if (newState.resources.FOOD < totalPop * 50) {
-             const upgradeableFarms = farms.filter(b => b.level < BUILDINGS_CONFIG.FARM.MAX_LEVEL);
-             if (upgradeableFarms.length > 0) {
-                upgradeableFarms.sort((a,b) => a.level - b.level);
-                const cost = getUpgradeCost('FARM', upgradeableFarms[0].level);
-                if (canAfford(cost, 1.5)) {
-                   newState.resources.WOOD -= cost.WOOD;
-                   newState.resources.STONE -= cost.STONE;
-                   upgradeableFarms[0].level++;
-                   upgradeableFarms[0].lastLevelUpTime = newState.totalTime;
-                }
-             }
+    // 3. 住宅升级 (提升幸福感/容量 - 虽然现在是自动建房，但升级可以作为资源消耗口)
+    if (newState.totalTime % 100 === 0) {
+        const houses = newState.buildings.filter(b => b.type === 'HOUSE' && b.level < 3);
+        if (houses.length > 0 && canAfford(COSTS.UPGRADE_HOUSE)) {
+             const house = houses[Math.floor(Math.random() * houses.length)];
+             newState.resources.WOOD -= COSTS.UPGRADE_HOUSE.WOOD;
+             newState.resources.STONE -= COSTS.UPGRADE_HOUSE.STONE;
+             house.level++;
         }
     }
 
-    // --- CITY CONSTRUCTION (AUTOMATED INFINITE) ---
-    const houses = newState.buildings.filter(b => b.type === 'HOUSE');
-    const homelessAgents = newState.agents.filter(a => !a.homeId || !houses.find(h => h.id === a.homeId));
-    const totalCapacity = houses.reduce((acc, b) => acc + getHouseCapacity(b), 0);
-    
-    const needsHouse = homelessAgents.length > 0 || newState.agents.length > totalCapacity * 0.9;
-    
-    if (needsHouse && newState.resources.WOOD >= COSTS.HOUSE.WOOD * 1.2 && newState.resources.STONE >= COSTS.HOUSE.STONE * 1.2) {
-        newState.resources.WOOD -= COSTS.HOUSE.WOOD;
-        newState.resources.STONE -= COSTS.HOUSE.STONE;
-        const pos = findConstructionSpot(center, newState.buildings, newState.terrain, 40);
-        newState.buildings.push({ id: `house-${newState.totalTime}`, type: 'HOUSE', position: pos, level: 1, occupants: [] });
-    }
-
-    if (newState.resources.WOOD >= COSTS.FARM.WOOD * 3 && newState.resources.STONE >= COSTS.FARM.STONE * 3) {
-        if (newState.buildings.filter(b => b.type === 'FARM').length < Math.max(2, newState.agents.length / 3)) {
-            newState.resources.WOOD -= COSTS.FARM.WOOD;
-            newState.resources.STONE -= COSTS.FARM.STONE;
-            const pos = findConstructionSpot(center, newState.buildings, newState.terrain, 60);
-            newState.buildings.push({ id: `farm-${newState.totalTime}`, type: 'FARM', position: pos, level: 1 });
-        }
-    }
-
-    // 3. Build DEFENSES (Fences & Walls)
+    // 4. 防御工事 (富余资源)
     const walls = newState.buildings.filter(b => b.type === 'WALL');
-    
-    if (newState.resources.STONE > 200) {
-         const woodWalls = walls.filter(w => w.level === 1);
-         if (woodWalls.length > 0) {
-             const wallToUpgrade = woodWalls[0];
-             if (newState.resources.STONE >= COSTS.WALL_STONE.STONE) {
-                 newState.resources.STONE -= COSTS.WALL_STONE.STONE;
-                 wallToUpgrade.level = 2; // 2 = Stone Wall
-             }
-         }
-    }
-
-    if (newState.resources.WOOD > 300) {
-        if (newState.resources.WOOD >= COSTS.WALL_WOOD.WOOD && Math.random() < 0.2) {
+    if (newState.resources.WOOD > 400 && newState.resources.STONE > 100) {
+        // 尝试建造一圈墙
+        if (Math.random() < 0.1) {
             let maxDist = 0;
             newState.buildings.forEach(b => { if (b.type !== 'WALL') maxDist = Math.max(maxDist, dist(center!, b.position)); });
             const wallRadius = Math.max(150, maxDist + 50); 
             
-            for(let i=0; i<10; i++) {
+            for(let i=0; i<5; i++) { // 尝试几次找到合适位置
                 const angle = Math.random() * Math.PI * 2;
                 const wx = center!.x + Math.cos(angle) * wallRadius;
                 const wy = center!.y + Math.sin(angle) * wallRadius;
@@ -627,13 +612,13 @@ export const tickSimulation = (state: GameState): GameState => {
                         const blocked = newState.buildings.some(b => dist(b.position, {x:wx, y:wy}) < 15) ||
                                         newState.nodes.some(n => dist(n.position, {x:wx, y:wy}) < 15);
                         if (!blocked) {
-                            newState.resources.WOOD -= COSTS.WALL_WOOD.WOOD;
-                            newState.buildings.push({
-                                id: `wall-${newState.totalTime}`,
-                                type: 'WALL',
-                                position: {x: wx, y: wy},
-                                level: 1, 
-                            });
+                            if (newState.resources.STONE > COSTS.WALL_STONE.STONE) {
+                                newState.resources.STONE -= COSTS.WALL_STONE.STONE;
+                                newState.buildings.push({ id: `wall-s-${newState.totalTime}`, type: 'WALL', position: {x:wx,y:wy}, level: 2 });
+                            } else {
+                                newState.resources.WOOD -= COSTS.WALL_WOOD.WOOD;
+                                newState.buildings.push({ id: `wall-w-${newState.totalTime}`, type: 'WALL', position: {x:wx,y:wy}, level: 1 });
+                            }
                             break;
                         }
                     }
@@ -643,24 +628,33 @@ export const tickSimulation = (state: GameState): GameState => {
     }
 
 
-    // --- Reproduction (CUMULATIVE PROGRESS) ---
-    const currentCapacity = newState.buildings.filter(b => b.type === 'HOUSE').reduce((acc, b) => acc + getHouseCapacity(b), 0);
-    const populationCapBuffer = currentCapacity + 2;
-    
-    if (newState.agents.length < populationCapBuffer && !newState.disasterActive) {
-        const SAFETY_FOOD_BUFFER = 100;
-        const GROWTH_RATE_PER_TICK = 0.5; 
+    // --- 繁殖 (累积进度) ---
+    // 只有食物足够，人口才会增长
+    const SAFETY_FOOD_BUFFER = 150;
+    const GROWTH_RATE_PER_TICK = 0.8; 
 
-        if (newState.resources.FOOD > SAFETY_FOOD_BUFFER) {
-            newState.resources.FOOD -= GROWTH_RATE_PER_TICK;
-            newState.reproductionProgress += GROWTH_RATE_PER_TICK;
-        }
+    if (newState.resources.FOOD > SAFETY_FOOD_BUFFER) {
+        newState.resources.FOOD -= GROWTH_RATE_PER_TICK;
+        newState.reproductionProgress += GROWTH_RATE_PER_TICK;
+    }
 
-        if (newState.reproductionProgress >= COSTS.SPAWN.FOOD) {
+    if (newState.reproductionProgress >= COSTS.SPAWN.FOOD) {
              newState.reproductionProgress = 0; 
              
+             // 1. 自动建房 (必须)
+             const housePos = findConstructionSpot(center!, newState.buildings, newState.terrain, 40);
+             const newHouse: Building = {
+                 id: `house-${newState.totalTime}`,
+                 type: 'HOUSE',
+                 position: housePos,
+                 level: 1,
+                 occupants: []
+             };
+             newState.buildings.push(newHouse);
+
+             // 2. 诞生新居民
              const parent = newState.agents[Math.floor(Math.random() * newState.agents.length)];
-             const newStats = parent ? mutate(parent.stats) : { ...BASE_STATS };
+             const newStats = parent ? mutate(parent.stats) : { ...BASE_STATS, lifespan: Infinity };
              
              const newAgent: Agent = {
                  id: `gen-${newState.totalTime}`,
@@ -674,57 +668,28 @@ export const tickSimulation = (state: GameState): GameState => {
                  age: 0,
                  gen: (parent?.gen || 0) + 1,
                  color: parent ? parent.color : `hsl(${Math.random() * 360}, 70%, 60%)`,
-                 homeId: null
+                 homeId: newHouse.id
              };
              
-             const home = newState.buildings.find(b => b.type === 'HOUSE' && (b.occupants?.length || 0) < getHouseCapacity(b));
-             if (home) {
-                 newAgent.homeId = home.id;
-                 home.occupants = home.occupants || [];
-                 home.occupants.push(newAgent.id);
-             }
+             newHouse.occupants?.push(newAgent.id);
              newState.agents.push(newAgent);
              newState.populationPeak = Math.max(newState.populationPeak, newState.agents.length);
-        }
+             
+             if (newState.agents.length % 5 === 0) {
+                 newState.lore.unshift(`人口突破 ${newState.agents.length} 人，新的家族诞生了。`);
+             }
     }
 
-    // --- Agent Loop ---
-    newState.agents = newState.agents.filter(a => {
-        const alive = a.age < a.stats.lifespan;
-        if (!alive && a.homeId) {
-             const home = newState.buildings.find(b => b.id === a.homeId);
-             if (home && home.occupants) home.occupants = home.occupants.filter(oid => oid !== a.id);
-        }
-        return alive;
-    });
-
-    // Anti-Extinction
-    if (newState.agents.length < 2) {
-        for(let i=0; i<2; i++) {
-             newState.agents.push({
-                id: `nomad-${newState.totalTime}-${i}`,
-                position: { ...center! },
-                target: null,
-                path: null,
-                state: AgentState.IDLE,
-                inventory: null,
-                stats: { ...BASE_STATS },
-                energy: BASE_STATS.stamina,
-                age: 0,
-                gen: newState.generation, 
-                color: `hsl(${Math.random() * 360}, 70%, 60%)`,
-                homeId: null
-            });
-        }
-    }
-
+    // --- Agent 循环 ---
     newState.agents.forEach(agent => {
         agent.age++;
         if (agent.energy === undefined) agent.energy = agent.stats.stamina;
 
+        // 能量消耗
         if (agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME) agent.energy -= 0.5;
 
-        if (agent.energy < (agent.stats.stamina * 0.3) && agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME && !newState.disasterActive) {
+        // 休息逻辑
+        if (agent.energy < (agent.stats.stamina * 0.2) && agent.state !== AgentState.RESTING && agent.state !== AgentState.MOVING_HOME && !newState.disasterActive) {
             agent.state = AgentState.MOVING_HOME;
             let homePos = center!; 
             if (agent.homeId) {
@@ -732,15 +697,16 @@ export const tickSimulation = (state: GameState): GameState => {
                 if (home) homePos = home.position;
             }
             agent.target = homePos;
-            agent.path = null; // Trigger pathfinding
+            agent.path = null; 
         }
 
+        // 灾难逃跑
         if (newState.disasterActive && Math.random() > agent.stats.resilience) {
             agent.state = AgentState.FLEEING;
-            agent.path = null; // Reset path
+            agent.path = null;
         }
 
-        // State Machine with Collision
+        // 状态机
         switch (agent.state) {
             case AgentState.FLEEING:
                 if (dist(agent.position, center!) > 50) {
@@ -752,7 +718,7 @@ export const tickSimulation = (state: GameState): GameState => {
                 break;
 
             case AgentState.RESTING:
-                agent.energy += 5;
+                agent.energy += 8; // 恢复速度
                 if (agent.energy >= agent.stats.stamina) {
                     agent.energy = agent.stats.stamina;
                     agent.state = AgentState.IDLE;
@@ -774,29 +740,24 @@ export const tickSimulation = (state: GameState): GameState => {
                 break;
 
             case AgentState.IDLE:
-                // Prioritize based on current stockpiles
-                let targetType = ResourceType.FOOD;
+                // 智能选择目标
+                const targetType = pickResourceTarget(agent, newState, needs);
                 
-                const r = newState.resources;
-                if (r.FOOD > 500) targetType = ResourceType.WOOD;
-                if (r.FOOD > 1000 && r.WOOD > 500) targetType = ResourceType.STONE;
-                if (r.STONE > 500 && r.WOOD > 1000 && Math.random() < 0.4) targetType = ResourceType.IRON;
-                if (r.WOOD > 2000 && Math.random() < 0.1) targetType = ResourceType.GOLD;
-                if (r.FOOD < 100) targetType = ResourceType.FOOD;
-
+                // 寻找对应资源节点
                 const nodes = newState.nodes.filter(n => n.type === targetType && n.amount > 0);
+                
                 if (nodes.length > 0) {
+                    // 寻找最近的几个节点中随机一个 (增加随机性避免所有人去抢同一个)
                     nodes.sort((a,b) => dist(agent.position, a.position) - dist(agent.position, b.position));
-                    // Pick a random one from nearest 3 to avoid clumping
                     const targetNode = nodes[Math.floor(Math.random() * Math.min(3, nodes.length))];
                     agent.target = targetNode.position;
-                    agent.path = null; // Reset path for new target
+                    agent.path = null;
                     agent.state = AgentState.MOVING_TO_RESOURCE;
                 } else {
-                     // Wander randomly if no target resource found
+                     // 如果找不到目标资源，随机游荡一下
                      const angle = Math.random() * Math.PI * 2;
-                     const wx = agent.position.x + Math.cos(angle) * 20;
-                     const wy = agent.position.y + Math.sin(angle) * 20;
+                     const wx = agent.position.x + Math.cos(angle) * 30;
+                     const wy = agent.position.y + Math.sin(angle) * 30;
                      if (isPassable(wx, wy, newState.terrain)) {
                          moveAgentTowards(agent, {x: wx, y: wy}, newState.terrain);
                      }
@@ -830,10 +791,10 @@ export const tickSimulation = (state: GameState): GameState => {
                     if (agent.inventory.amount >= agent.stats.maxCarry || node.amount <= 0) {
                         agent.state = AgentState.RETURNING;
                         agent.target = center!;
-                        agent.path = null; // Reset path for return trip
+                        agent.path = null; 
                     }
                 } else {
-                    agent.state = AgentState.IDLE;
+                    agent.state = AgentState.IDLE; // 资源枯竭，重新寻找
                 }
                 break;
 

@@ -14,7 +14,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
 
     // --- Terrain Rendering (Cached) ---
     useEffect(() => {
-        // Only regenerate if terrain data changes
         if (terrainRef.current && terrainVersionRef.current === gameState.generation && gameState.totalTime > 10) return; 
         if (!gameState.terrain || gameState.terrain.length === 0) return;
 
@@ -40,11 +39,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
 
                 // --- Water Logic ---
                 if (val <= TERRAIN_WATER) {
-                    // Deep water base
                     tCtx.fillStyle = val < 0.15 ? COLORS.DEEP_WATER : COLORS.WATER;
                     tCtx.fillRect(px, py, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
-                    
-                    // Shoreline effect
                     if (val > TERRAIN_WATER - 0.05) {
                         tCtx.fillStyle = 'rgba(255, 255, 255, 0.05)';
                         tCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -56,7 +52,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
                 if (val < TERRAIN_SAND) {
                     tCtx.fillStyle = COLORS.SAND;
                 } else if (val < TERRAIN_MOUNTAIN) {
-                    // Forest vs Grass based on height/density
                     if (val > TERRAIN_FOREST_START && val < TERRAIN_FOREST_END) {
                         tCtx.fillStyle = COLORS.FOREST;
                     } else {
@@ -71,16 +66,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
                 tCtx.fillRect(px, py, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
 
                 // --- Texture Details ---
-                // Forest Trees
                 if (val > TERRAIN_FOREST_START && val < TERRAIN_FOREST_END) {
-                    if ((x + y * 57) % 3 === 0) { // Pseudo-random pattern
+                    if ((x + y * 57) % 3 === 0) { 
                         tCtx.fillStyle = 'rgba(0,0,0,0.2)';
                         tCtx.beginPath();
                         tCtx.arc(px + TILE_SIZE/2, py + TILE_SIZE/2, 4, 0, Math.PI*2);
                         tCtx.fill();
                     }
                 }
-                // Mountain Peaks
                 if (val >= TERRAIN_MOUNTAIN && val < TERRAIN_SNOW) {
                      tCtx.fillStyle = 'rgba(255,255,255,0.05)';
                      tCtx.beginPath(); tCtx.moveTo(px, py+TILE_SIZE); tCtx.lineTo(px+TILE_SIZE, py); tCtx.stroke();
@@ -99,27 +92,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         ctx.save();
         ctx.translate(x, y);
         
-        // Shadow/Glow
         ctx.shadowColor = agent.color;
         ctx.shadowBlur = 6;
         
-        // Body
         ctx.fillStyle = agent.color;
-        // Simple clean circle for head
         const bounce = isMoving ? Math.sin(time / 100 + parseInt(agent.id.split('-')[1] || '0')) * 2 : 0;
         
         ctx.beginPath(); 
         ctx.arc(0, -8 + bounce, 4, 0, Math.PI * 2); 
         ctx.fill();
 
-        // Minimalist body line
         ctx.strokeStyle = agent.color;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, -4 + bounce);
         ctx.lineTo(0, 2 + bounce);
         
-        // Legs
         if (isMoving) {
             const walk = Math.sin(time / 60 + parseInt(agent.id));
             ctx.lineTo(-3 * walk, 8 + bounce);
@@ -132,7 +120,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         }
         ctx.stroke();
 
-        // Carried Item (Floating Orb)
         if (agent.inventory) {
             ctx.shadowBlur = 0;
             ctx.fillStyle = COLORS[agent.inventory.type];
@@ -140,11 +127,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
             ctx.shadowBlur = 6;
         }
 
-        // State Indicators
         if (agent.state === AgentState.RESTING) {
              ctx.shadowBlur = 0;
              ctx.fillStyle = '#e2e8f0';
-             ctx.font = '14px monospace';
+             ctx.font = '18px monospace'; // Increased font size
              const zOffset = (time / 20) % 30;
              ctx.globalAlpha = Math.max(0, 1 - (zOffset / 30));
              ctx.fillText("z", 5, -15 - zOffset/2);
@@ -163,15 +149,64 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath(); ctx.ellipse(0, 5, 12, 6, 0, 0, Math.PI*2); ctx.fill();
 
-        // WALLS
+        if (b.type === 'STORAGE') {
+            // --- MAJESTIC CASTLE ---
+            // Base
+            ctx.fillStyle = '#4c1d95'; // Darker violet base
+            ctx.fillRect(-25, -20, 50, 20);
+            
+            // Main Keep
+            ctx.fillStyle = COLORS.STORAGE;
+            ctx.fillRect(-18, -45, 36, 45);
+            
+            // Side Turrets
+            ctx.fillStyle = '#5b21b6'; // Dark violet
+            ctx.fillRect(-30, -30, 12, 30); // Left
+            ctx.fillRect(18, -30, 12, 30);  // Right
+            
+            // Battlements/Details
+            ctx.fillStyle = '#c084fc'; 
+            ctx.fillRect(-18, -45, 6, 4);
+            ctx.fillRect(-6, -45, 6, 4);
+            ctx.fillRect(6, -45, 6, 4);
+            
+            // Turret Roofs
+            ctx.fillStyle = '#fcd34d'; // Gold
+            ctx.beginPath(); ctx.moveTo(-30, -30); ctx.lineTo(-24, -45); ctx.lineTo(-18, -30); ctx.fill(); // Left Roof
+            ctx.beginPath(); ctx.moveTo(18, -30); ctx.lineTo(24, -45); ctx.lineTo(30, -30); ctx.fill(); // Right Roof
+            
+            // Main Roof (Tall)
+            ctx.fillStyle = '#fbbf24'; // Amber
+            ctx.beginPath(); ctx.moveTo(-18, -45); ctx.lineTo(0, -70); ctx.lineTo(18, -45); ctx.fill();
+            
+            // Gate
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath(); ctx.arc(0, 0, 10, Math.PI, 0); ctx.fill();
+            
+            // Flag
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(0, -70); ctx.lineTo(0, -85); ctx.stroke();
+            ctx.fillStyle = '#ef4444'; // Red Flag
+            ctx.beginPath(); ctx.moveTo(0, -85); ctx.lineTo(12, -78); ctx.lineTo(0, -71); ctx.fill();
+
+            // Glow
+            ctx.shadowColor = '#fbbf24';
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.2)';
+            ctx.beginPath(); ctx.arc(0, -30, 40, 0, Math.PI*2); ctx.fill();
+
+            ctx.restore();
+            return;
+        }
+
         if (b.type === 'WALL') {
             const isStone = b.level > 1;
             ctx.fillStyle = isStone ? COLORS.WALL_STONE : COLORS.WALL_WOOD;
             ctx.fillRect(-8, -12, 16, 12);
-            // Detail
             ctx.fillStyle = 'rgba(255,255,255,0.1)';
-            ctx.fillRect(-8, -12, 16, 2); // Top highlight
-            if (isStone) { // Crenellations
+            ctx.fillRect(-8, -12, 16, 2);
+            if (isStone) { 
                 ctx.fillRect(-8, -15, 4, 3);
                 ctx.fillRect(4, -15, 4, 3);
             }
@@ -179,42 +214,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
             return;
         }
 
-        // BUILDINGS
         const color = b.type === 'HOUSE' ? COLORS.HOUSE : 
-                      b.type === 'STORAGE' ? COLORS.STORAGE : 
                       b.type === 'FARM' ? COLORS.FARM : COLORS.TOWER;
 
-        // Glow for high level
         if (b.level > 1) {
             ctx.shadowColor = color;
             ctx.shadowBlur = 5 + b.level;
         }
 
         if (b.type === 'HOUSE') {
-            // Modern A-Frame or Box
-            ctx.fillStyle = '#1e293b'; // Dark structure
+            ctx.fillStyle = '#1e293b'; 
             ctx.fillRect(-10, -12, 20, 12);
-            ctx.fillStyle = color; // Roof/Accent
+            ctx.fillStyle = color; 
             ctx.beginPath(); ctx.moveTo(-12, -10); ctx.lineTo(0, -20); ctx.lineTo(12, -10); ctx.fill();
-            // Door
             ctx.fillStyle = '#0f172a'; ctx.fillRect(-3, -6, 6, 6);
             
-        } else if (b.type === 'STORAGE') {
-            // Cylinder / Silo look
-            ctx.fillStyle = '#1e293b';
-            ctx.fillRect(-12, -15, 24, 15);
-            ctx.fillStyle = color;
-            ctx.fillRect(-12, -18, 24, 3); // Band
-            // Stacked goods visualization
-            const fillPct = Math.min(1, b.level / 5);
-            ctx.fillStyle = color;
-            ctx.globalAlpha = 0.3;
-            ctx.fillRect(-10, -5, 20, -10 * fillPct);
-            ctx.globalAlpha = 1;
-
         } else if (b.type === 'FARM') {
-            // Plots
-            ctx.fillStyle = '#3f6212'; // Dark soil
+            ctx.fillStyle = '#3f6212'; 
             ctx.fillRect(-14, -10, 28, 14);
             ctx.fillStyle = color;
             const rows = 3;
@@ -224,7 +240,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
             }
         }
 
-        // Level pips
         if (b.level > 1) {
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#fbbf24';
@@ -249,15 +264,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         ctx.shadowColor = COLORS[node.type];
         ctx.shadowBlur = 10;
         
-        // Base
         ctx.fillStyle = COLORS[node.type];
         
         if (node.type === ResourceType.WOOD) {
-            // Tree
             ctx.shadowBlur = 0;
-            ctx.fillStyle = '#451a03'; ctx.fillRect(-2, 0, 4, 8); // Trunk
+            ctx.fillStyle = '#451a03'; ctx.fillRect(-2, 0, 4, 8); 
             ctx.fillStyle = COLORS.WOOD; 
-            ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(0, -12); ctx.lineTo(6, 2); ctx.fill(); // Pine style
+            ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(0, -12); ctx.lineTo(6, 2); ctx.fill(); 
             ctx.beginPath(); ctx.moveTo(-8, 6); ctx.lineTo(0, -4); ctx.lineTo(8, 6); ctx.fill(); 
         } else if (node.type === ResourceType.STONE) {
             ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
@@ -265,7 +278,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         } else if (node.type === ResourceType.GOLD) {
             ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 2); ctx.lineTo(0, 8); ctx.lineTo(-6, 2); ctx.fill();
         } else {
-            // Default Orb (Food/Iron)
             ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
         }
 
@@ -283,20 +295,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
 
             ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
             
-            // 1. Draw Cached Terrain
             if (terrainRef.current) ctx.drawImage(terrainRef.current, 0, 0);
             
-            // 2. Water Shimmer Overlay (Procedural)
-            // We can't easily mask just the water here without complex compositing, 
-            // but we can add subtle full-screen atmospherics or just skip for performance.
-            // Let's try a very subtle cloud shadow effect
-            /*
-            const cloudOffset = (time / 100) % CANVAS_WIDTH;
-            ctx.fillStyle = 'rgba(0,0,0,0.05)';
-            // Simplified cloud shadows could go here
-            */
-
-            // 3. Sort Objects by Y for Pseudo-Depth
             const renderList = [
                 ...gameState.nodes.map(n => ({ type: 'node', y: n.position.y, data: n })),
                 ...gameState.buildings.map(b => ({ type: 'building', y: b.position.y, data: b })),
@@ -309,13 +309,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
                 if (item.type === 'agent') drawAgent(ctx, item.data as Agent, time);
             });
 
-            // 4. Disaster Overlay
             if (gameState.disasterActive) {
                  ctx.save();
                  if (gameState.disasterType === 'BLIZZARD') {
                      ctx.fillStyle = 'rgba(255,255,255,0.15)'; 
                      ctx.fillRect(0,0,CANVAS_WIDTH, CANVAS_HEIGHT);
-                     // Wind particles
                      ctx.fillStyle = '#fff';
                      for(let i=0; i<20; i++) {
                          const px = (time * 0.5 + i * 100) % CANVAS_WIDTH;
