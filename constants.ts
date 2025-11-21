@@ -1,5 +1,6 @@
 
 
+
 export const CANVAS_WIDTH = 1600;
 export const CANVAS_HEIGHT = 1200;
 export const TILE_SIZE = 20;
@@ -30,7 +31,25 @@ export const BASE_STATS = {
   stamina: 1000, // Energy before needing rest
 };
 
-export const HOUSE_CAPACITY = 2; // Small families per house
+export const HOUSE_CAPACITY = 2; // Base families per house
+
+// Upgrade Scalings
+export const BUILDINGS_CONFIG = {
+  HOUSE: {
+    CAPACITY_PER_LEVEL: 1,
+    MAX_LEVEL: 5
+  },
+  STORAGE: {
+    BASE_CAPACITY: 1000,
+    CAPACITY_PER_LEVEL: 1000,
+    MAX_LEVEL: 10
+  },
+  FARM: {
+    BASE_PRODUCTION: 5,
+    PRODUCTION_PER_LEVEL: 3,
+    MAX_LEVEL: 5
+  }
+};
 
 export const COSTS = {
   HOUSE: { WOOD: 60, STONE: 10 },
@@ -39,8 +58,11 @@ export const COSTS = {
   TOWER: { STONE: 150, IRON: 50 },
   WALL_WOOD: { WOOD: 15 }, 
   WALL_STONE: { STONE: 15 },
-  UPGRADE: { WOOD: 100, STONE: 50 },
   SPAWN: { FOOD: 25 },
+  // Upgrade Base Costs (Multiplied by 1.5^Level)
+  UPGRADE_HOUSE: { WOOD: 50, STONE: 20 },
+  UPGRADE_STORAGE: { WOOD: 200, STONE: 100 },
+  UPGRADE_FARM: { WOOD: 100, STONE: 50 },
 };
 
 export const MUTATION_RATE = 0.1; // 10% change per gen

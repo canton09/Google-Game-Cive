@@ -143,6 +143,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         ctx.save();
         ctx.translate(x, y);
 
+        // LEVEL BADGE (Simple dot indicators above building)
+        if (b.level > 1) {
+            ctx.fillStyle = '#fbbf24'; // Amber
+            for(let i=0; i<b.level; i++) {
+                 ctx.beginPath(); ctx.arc(-8 + (i*5), -40, 1.5, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
         // WALL RENDERING
         if (b.type === 'WALL') {
             const isStone = b.level > 1;
@@ -167,27 +175,53 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState }) => {
         if (b.type === 'HOUSE') {
              ctx.beginPath(); ctx.moveTo(-10, -5); ctx.lineTo(14, -5); ctx.lineTo(20, 10); ctx.lineTo(-4, 10); ctx.fill();
              ctx.fillStyle = COLORS.HOUSE; 
-             ctx.fillRect(-8, -12, 16, 12);
-             const roofHeight = 10 + (b.level * 2);
+             
+             // House size/complexity increases with level
+             const width = 16 + (b.level * 2);
+             ctx.fillRect(-width/2, -12, width, 12);
+             
+             const roofHeight = 10 + (b.level * 3);
              ctx.fillStyle = '#be185d'; 
-             ctx.beginPath(); ctx.moveTo(-10, -12); ctx.lineTo(0, -12 - roofHeight); ctx.lineTo(10, -12); ctx.fill();
+             ctx.beginPath(); 
+             ctx.moveTo(-width/2 - 2, -12); 
+             ctx.lineTo(0, -12 - roofHeight); 
+             ctx.lineTo(width/2 + 2, -12); 
+             ctx.fill();
+             
              ctx.fillStyle = '#334155'; ctx.fillRect(-3, -5, 6, 5); // Door
+        
         } else if (b.type === 'FARM') {
              ctx.fillStyle = 'rgba(40, 60, 20, 0.5)'; ctx.fillRect(-15, -15, 30, 30);
              const growth = (time % 2000) / 2000;
+             
+             // Denser crops for higher levels
+             const rows = 2 + Math.min(3, b.level);
+             const cols = 2 + Math.min(3, b.level);
+             
              ctx.fillStyle = COLORS.FARM;
-             for(let r=0; r<3; r++) for(let c=0; c<3; c++) {
+             for(let r=0; r<rows; r++) for(let c=0; c<cols; c++) {
                  const ch = 4 + (Math.sin(time/1000 + r+c)*2);
-                 ctx.fillRect(-12 + c*10, -12 + r*10 - ch, 4, ch);
-                 ctx.fillStyle = '#fef08a'; ctx.fillRect(-13 + c*10, -14 + r*10 - ch, 6, 3); ctx.fillStyle = COLORS.FARM;
+                 const spacing = 20 / rows;
+                 const ox = -12 + c * spacing;
+                 const oy = -12 + r * spacing;
+                 
+                 ctx.fillRect(ox, oy - ch, 3, ch);
+                 ctx.fillStyle = '#fef08a'; ctx.fillRect(ox-1, oy - ch - 2, 5, 3); ctx.fillStyle = COLORS.FARM;
              }
         } else if (b.type === 'STORAGE') {
-             ctx.fillStyle = COLORS.STORAGE; ctx.fillRect(-12, -10, 24, 10);
-             ctx.fillStyle = '#7c3aed'; ctx.fillRect(-14, -12, 28, 4);
+             ctx.fillStyle = COLORS.STORAGE; 
+             const baseW = 24 + (b.level * 2);
+             ctx.fillRect(-baseW/2, -10, baseW, 10);
+             
+             ctx.fillStyle = '#7c3aed'; 
+             ctx.fillRect(-(baseW+4)/2, -12, baseW+4, 4);
+             
              ctx.fillStyle = '#4c1d95'; ctx.fillRect(-8, -6, 6, 6);
+             
+             // Glowing Core gets bigger/brighter
              const pulse = Math.sin(time / 400) * 0.5 + 0.5; 
              ctx.fillStyle = `rgba(221, 214, 254, ${pulse * 0.8 + 0.2})`; 
-             ctx.beginPath(); ctx.arc(0, -12, 2 + (b.level), 0, Math.PI * 2); ctx.fill();
+             ctx.beginPath(); ctx.arc(0, -14 - (b.level), 3 + (b.level), 0, Math.PI * 2); ctx.fill();
         } else if (b.type === 'TOWER') {
              ctx.fillStyle = COLORS.TOWER; ctx.fillRect(-6, -30, 12, 30);
              ctx.fillStyle = '#475569'; ctx.fillRect(-8, -10, 16, 10);

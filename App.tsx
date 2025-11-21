@@ -1,7 +1,8 @@
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Activity, Box, Database, Users, Zap, Image as ImageIcon, Loader, RefreshCw } from 'lucide-react';
 import GameCanvas from './components/GameCanvas';
-import { initializeGame, tickSimulation, generateTerrain } from './services/simulation';
+import { initializeGame, tickSimulation, generateTerrain, getMaxStorage } from './services/simulation';
 import { generateLore, generateCivilizationSnapshot } from './services/geminiService';
 import { GameState } from './types';
 import { GRID_W, GRID_H } from './constants';
@@ -47,8 +48,10 @@ const App: React.FC = () => {
 
         if (diffSeconds > 60) {
           console.log(`Simulating ${diffSeconds} seconds of offline progress...`);
-          loadedState.resources.FOOD += diffSeconds * 0.5;
-          loadedState.resources.WOOD += diffSeconds * 0.2;
+          // Estimate max storage roughly
+          const maxStorageEst = 2000; // Safe fallback
+          loadedState.resources.FOOD = Math.min(maxStorageEst, loadedState.resources.FOOD + diffSeconds * 0.5);
+          loadedState.resources.WOOD = Math.min(maxStorageEst, loadedState.resources.WOOD + diffSeconds * 0.2);
           loadedState.lore.unshift(`在你沉睡时，${Math.floor(diffSeconds)} 个瞬间过去了。`);
         }
         setGameState(loadedState);
@@ -142,6 +145,8 @@ const App: React.FC = () => {
   const totalDays = Math.floor(gameState.totalTime / 10); // 10 ticks = 1 day
   const currentYear = Math.floor(totalDays / 360) + 1;
   const dayOfYear = totalDays % 360;
+  
+  const maxStorage = getMaxStorage(gameState.buildings);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col lg:flex-row overflow-hidden">
@@ -162,19 +167,19 @@ const App: React.FC = () => {
         <div className="mb-4 w-full max-w-[1600px] flex justify-between items-center bg-slate-800/50 p-2 rounded-lg backdrop-blur-sm border border-slate-700/50 sticky top-20 z-10">
             <div className="flex gap-4 text-sm font-mono flex-wrap justify-center w-full">
                 <span className="flex items-center gap-2 text-emerald-400" title="食物">
-                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-emerald-500 rounded-full"></div> {Math.floor(gameState.resources.FOOD)}
+                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-emerald-500 rounded-full"></div> 食物 {Math.floor(gameState.resources.FOOD)} / {maxStorage}
                 </span>
                 <span className="flex items-center gap-2 text-amber-500" title="木材">
-                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-amber-600 rounded-full"></div> {Math.floor(gameState.resources.WOOD)}
+                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-amber-600 rounded-full"></div> 木材 {Math.floor(gameState.resources.WOOD)} / {maxStorage}
                 </span>
                 <span className="flex items-center gap-2 text-slate-400" title="石料">
-                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-slate-500 rounded-full"></div> {Math.floor(gameState.resources.STONE)}
+                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-slate-500 rounded-full"></div> 石料 {Math.floor(gameState.resources.STONE)} / {maxStorage}
                 </span>
                  <span className="flex items-center gap-2 text-zinc-400" title="铁矿">
-                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-zinc-500 rounded-full"></div> {Math.floor(gameState.resources.IRON || 0)}
+                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-zinc-500 rounded-full"></div> 铁矿 {Math.floor(gameState.resources.IRON || 0)}
                 </span>
                  <span className="flex items-center gap-2 text-yellow-400" title="黄金">
-                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-yellow-400 rounded-full"></div> {Math.floor(gameState.resources.GOLD || 0)}
+                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-yellow-400 rounded-full"></div> 黄金 {Math.floor(gameState.resources.GOLD || 0)}
                 </span>
             </div>
         </div>
