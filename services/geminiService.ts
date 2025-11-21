@@ -44,7 +44,7 @@ export const generateLore = async (gameState: GameState): Promise<string | null>
     }
 };
 
-export const generateCivilizationSnapshot = async (gameState: GameState, size: '1K' | '2K' | '4K'): Promise<string | null> => {
+export const generateCivilizationSnapshot = async (gameState: GameState): Promise<string | null> => {
     if (!process.env.API_KEY) return null;
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -69,7 +69,7 @@ export const generateCivilizationSnapshot = async (gameState: GameState, size: '
             },
             config: {
                 imageConfig: {
-                    imageSize: size,
+                    imageSize: '1K',
                     aspectRatio: "1:1"
                 }
             }

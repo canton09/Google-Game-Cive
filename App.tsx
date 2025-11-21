@@ -4,6 +4,7 @@ import GameCanvas from './components/GameCanvas';
 import { initializeGame, tickSimulation, generateTerrain } from './services/simulation';
 import { generateLore, generateCivilizationSnapshot } from './services/geminiService';
 import { GameState } from './types';
+import { GRID_W, GRID_H } from './constants';
 
 const OFFLINE_CALCULATION_LIMIT = 3600 * 12; // Max 12 hours offline progress
 
@@ -22,7 +23,6 @@ const App: React.FC = () => {
   // Image Gen State
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [isGeneratingImg, setIsGeneratingImg] = useState(false);
-  const [imgSize, setImgSize] = useState<'1K' | '2K' | '4K'>('1K');
 
   const requestRef = useRef<number>();
   const lastTimeRef = useRef<number>();
@@ -39,9 +39,9 @@ const App: React.FC = () => {
         // Simulate offline progress
         let loadedState = parsed.state;
 
-        // MIGRATION: Ensure terrain exists if loading old save
-        if (!loadedState.terrain || loadedState.terrain.length === 0) {
-            console.log("Migrating save: Generating terrain...");
+        // MIGRATION: Ensure terrain exists and matches current grid size
+        if (!loadedState.terrain || loadedState.terrain.length === 0 || loadedState.terrain.length !== GRID_H || loadedState.terrain[0]?.length !== GRID_W) {
+            console.log("Migrating save: Regenerating terrain due to size change...");
             loadedState.terrain = generateTerrain();
         }
 
@@ -115,13 +115,19 @@ const App: React.FC = () => {
         }
         
         setIsGeneratingImg(true);
-        const imgData = await generateCivilizationSnapshot(gameState, imgSize);
+        // Fixed 1K resolution
+        const imgData = await generateCivilizationSnapshot(gameState);
         if (imgData) {
             setSnapshot(imgData);
         }
     } catch (error: any) {
         console.error("Snapshot error:", error);
-        if (String(error).includes("Requested entity was not found") && window.aistudio) {
+        
+        const errorMessage = String(error);
+        const isPermissionDenied = errorMessage.includes("403") || errorMessage.includes("PERMISSION_DENIED");
+        const isEntityNotFound = errorMessage.includes("Requested entity was not found");
+
+        if ((isPermissionDenied || isEntityNotFound) && window.aistudio) {
              try {
                  await window.aistudio.openSelectKey();
              } catch (e) { console.error("Key selection failed", e); }
@@ -135,16 +141,18 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col lg:flex-row overflow-hidden">
       
       {/* Main Game Area */}
-      <main className="flex-1 p-4 lg:p-8 flex flex-col items-center justify-center relative">
-        <div className="absolute top-4 left-6 z-10">
-            <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-2">
-                <Zap className="text-amber-400 fill-amber-400" /> EvoCiv
-            </h1>
-            <p className="text-slate-500 text-sm mt-1">世代 {gameState.generation} • 年份 {Math.floor(gameState.totalTime / 100)}</p>
+      <main className="flex-1 p-4 lg:p-8 flex flex-col items-center relative overflow-auto">
+        <div className="sticky top-0 z-20 w-full flex justify-between items-start mb-4 pointer-events-none">
+             <div className="pointer-events-auto">
+                <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-2 drop-shadow-lg">
+                    <Zap className="text-amber-400 fill-amber-400" /> EvoCiv
+                </h1>
+                <p className="text-slate-400 text-sm mt-1 font-mono bg-slate-900/80 px-2 rounded inline-block">世代 {gameState.generation} • 天数 {Math.floor(gameState.totalTime / 10)}</p>
+            </div>
         </div>
 
-        <div className="mb-4 w-full max-w-[800px] flex justify-between items-center">
-            <div className="flex gap-4 text-sm font-mono flex-wrap">
+        <div className="mb-4 w-full max-w-[1600px] flex justify-between items-center bg-slate-800/50 p-2 rounded-lg backdrop-blur-sm border border-slate-700/50 sticky top-20 z-10">
+            <div className="flex gap-4 text-sm font-mono flex-wrap justify-center w-full">
                 <span className="flex items-center gap-2 text-emerald-400" title="食物">
                     <div className="w-2 h-2 lg:w-3 lg:h-3 bg-emerald-500 rounded-full"></div> {Math.floor(gameState.resources.FOOD)}
                 </span>
@@ -163,7 +171,9 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        <GameCanvas gameState={gameState} />
+        <div className="flex-1 flex items-center justify-center min-w-min">
+            <GameCanvas gameState={gameState} />
+        </div>
         
         <div className="mt-2 text-xs text-slate-600 font-mono">
             自动保存于: {new Date(lastSaved).toLocaleTimeString()}
@@ -171,7 +181,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Sidebar / Dashboard */}
-      <aside className="w-full lg:w-80 bg-slate-950 border-l border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto max-h-[40vh] lg:max-h-screen">
+      <aside className="w-full lg:w-80 bg-slate-950 border-l border-slate-800 p-6 flex flex-col gap-6 overflow-y-auto max-h-[40vh] lg:max-h-screen shrink-0 z-30 shadow-xl">
         
         {/* Population Stats */}
         <section>
@@ -197,21 +207,12 @@ const App: React.FC = () => {
             </h3>
             <div className="bg-slate-900 p-3 rounded border border-slate-800 space-y-3">
                 <div className="flex gap-2">
-                     <select 
-                        value={imgSize} 
-                        onChange={(e) => setImgSize(e.target.value as '1K'|'2K'|'4K')}
-                        className="bg-slate-800 text-slate-300 text-xs rounded p-1.5 border border-slate-700 flex-1 focus:outline-none focus:border-indigo-500"
-                     >
-                         <option value="1K">1K 分辨率</option>
-                         <option value="2K">2K 分辨率</option>
-                         <option value="4K">4K 分辨率</option>
-                     </select>
                      <button 
                         onClick={handleSnapshot}
                         disabled={isGeneratingImg}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white p-2 rounded flex items-center justify-center transition-colors"
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white p-2 rounded flex items-center justify-center transition-colors text-xs font-bold uppercase tracking-wider"
                      >
-                         {isGeneratingImg ? <Loader size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                         {isGeneratingImg ? <Loader size={14} className="animate-spin" /> : <><RefreshCw size={14} className="mr-2" /> 生成快照 (1K)</>}
                      </button>
                 </div>
 
@@ -262,7 +263,7 @@ const App: React.FC = () => {
                     })}
                 </div>
             ) : (
-                <div className="text-sm text-red-400 italic">文明已灭绝。需要重置。</div>
+                <div className="text-sm text-red-400 italic">文明重建中...</div>
             )}
         </section>
 

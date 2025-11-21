@@ -1,0 +1,87 @@
+import React, { useEffect, useRef } from 'react';
+import { GameState, ResourceType } from '../types';
+import { COLORS, GRID_H, GRID_W, CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE } from '../constants';
+
+interface MiniMapProps {
+    gameState: GameState;
+}
+
+const MiniMap: React.FC<MiniMapProps> = ({ gameState }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Clear Background
+        ctx.fillStyle = '#0f172a'; // Slate 900
+        ctx.fillRect(0, 0, width, height);
+
+        const scaleX = width / CANVAS_WIDTH;
+        const scaleY = height / CANVAS_HEIGHT;
+        const tileW = TILE_SIZE * scaleX;
+        const tileH = TILE_SIZE * scaleY;
+
+        // 1. Draw Terrain (Simplified)
+        if (gameState.terrain) {
+             for (let y = 0; y < GRID_H; y++) {
+                for (let x = 0; x < GRID_W; x++) {
+                    const val = gameState.terrain[y][x];
+                    if (val > 0.6) {
+                        ctx.fillStyle = '#1e293b'; // Mountain
+                        ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
+                    } else if (val < 0.45) {
+                        ctx.fillStyle = 'rgba(6, 78, 59, 0.6)'; // Deep Green
+                        ctx.fillRect(x * tileW, y * tileH, tileW + 0.5, tileH + 0.5);
+                    }
+                }
+            }
+        }
+
+        // 2. Draw Resources
+        gameState.nodes.forEach(node => {
+            if (node.amount <= 0) return;
+            ctx.fillStyle = COLORS[node.type];
+            const r = node.type === ResourceType.GOLD ? 2 : 1.5;
+            ctx.beginPath();
+            ctx.arc(node.position.x * scaleX, node.position.y * scaleY, r, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // 3. Draw Buildings
+        gameState.buildings.forEach(b => {
+            ctx.fillStyle = b.type === 'HOUSE' ? COLORS.HOUSE : 
+                           b.type === 'STORAGE' ? COLORS.STORAGE : 
+                           b.type === 'FARM' ? COLORS.FARM : COLORS.TOWER;
+            const s = 3;
+            ctx.fillRect((b.position.x * scaleX) - s/2, (b.position.y * scaleY) - s/2, s, s);
+        });
+
+        // 4. Draw Agents (Bright dots)
+        ctx.fillStyle = '#ffffff';
+        gameState.agents.forEach(a => {
+            ctx.fillRect(a.position.x * scaleX, a.position.y * scaleY, 1, 1);
+        });
+        
+        // Viewport border (aesthetic)
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+        ctx.strokeRect(0, 0, width, height);
+
+    }, [gameState]);
+
+    return (
+        <canvas 
+            ref={canvasRef} 
+            width={280} 
+            height={210} 
+            className="w-full h-auto rounded border border-slate-700 bg-slate-950 shadow-md block"
+        />
+    );
+};
+
+export default MiniMap;

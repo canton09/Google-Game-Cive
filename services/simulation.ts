@@ -309,6 +309,28 @@ export const tickSimulation = (state: GameState): GameState => {
     // --- Agent Loop ---
     newState.agents = newState.agents.filter(a => a.age < a.stats.lifespan);
 
+    // Anti-Extinction: Nomads
+    if (newState.agents.length < 2) {
+        const missing = 2 - newState.agents.length;
+        for(let i=0; i<missing; i++) {
+             newState.agents.push({
+                id: `nomad-${newState.totalTime}-${i}`,
+                position: { x: center.x + (Math.random() * 200 - 100), y: center.y + (Math.random() * 200 - 100) },
+                target: null,
+                state: AgentState.IDLE,
+                inventory: null,
+                stats: { ...BASE_STATS }, // Reset stats to base to prevent degeneration loop
+                age: 0,
+                gen: newState.generation, // Keep current generation
+                color: `hsl(${Math.random() * 360}, 70%, 60%)`
+            });
+        }
+        // Only add lore if we actually added someone and haven't spammed it recently
+        if (Math.random() < 0.1) {
+             newState.lore.unshift("流浪者加入了你的文明，延续了火种。");
+        }
+    }
+
     newState.agents.forEach(agent => {
         agent.age++;
         if (newState.disasterActive) {

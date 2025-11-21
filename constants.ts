@@ -1,5 +1,6 @@
-export const CANVAS_WIDTH = 800;
-export const CANVAS_HEIGHT = 600;
+
+export const CANVAS_WIDTH = 1600;
+export const CANVAS_HEIGHT = 1200;
 export const TILE_SIZE = 20;
 export const GRID_W = CANVAS_WIDTH / TILE_SIZE;
 export const GRID_H = CANVAS_HEIGHT / TILE_SIZE;
